@@ -2279,33 +2279,158 @@ function removeConnectionForNode(nodeId) {
   updateAllViews();
 }
 
-function handleConnectionButtonClick(nodeId) {
-  // Does this node currently have any incoming connections?
-  var hasParents = connections.some(function (c) {
-    return c.toId === nodeId;
-  });
 
-  // If there are no parents, just add a new connection as before
-  if (!hasParents) {
-    addConnectionForNode(nodeId);
+function handleConnectionButtonClick(nodeId) {
+  var refNode = nodes.find(function (n) { return n.id === nodeId; });
+  if (!refNode) return;
+
+  var previousLevel = getPreviousLevel(refNode.level);
+  if (!previousLevel) return;
+
+  var candidates = nodes.filter(function (n) {
+    return n.level === previousLevel && n.id !== nodeId;
+  });
+  if (!candidates.length) {
+    alert("There are no " + getLevelLabel(previousLevel) + " items to connect to.");
     return;
   }
 
-  var choice = window.prompt(
-    "What would you like to do?\n\n" +
-      "1 = Add a new connection\n" +
-      "2 = Remove an existing connection",
-    "1"
-  );
-  if (choice === null) return;
-  choice = choice.trim();
-
-  if (choice === "1") {
-    addConnectionForNode(nodeId);
-  } else if (choice === "2") {
-    removeConnectionForNode(nodeId);
+  // Protect unusual older diagrams rather than silently deleting their links.
+  var candidateIds = candidates.map(function (n) { return n.id; });
+  var unusualLink = connections.some(function (c) {
+    return c.toId === nodeId && candidateIds.indexOf(c.fromId) === -1;
+  });
+  if (unusualLink || (refNode.parentId && candidateIds.indexOf(refNode.parentId) === -1)) {
+    alert("This item has a connection outside the expected driver levels. " +
+      "No changes have been made. Please keep this saved diagram for review.");
+    return;
   }
+
+  if (document.getElementById("connectionEditorDialog")) return;
+
+  var connectedIds = connections.filter(function (c) {
+    return c.toId === nodeId;
+  }).map(function (c) { return c.fromId; });
+
+  var dialog = document.createElement("dialog");
+  dialog.id = "connectionEditorDialog";
+  dialog.setAttribute("aria-labelledby", "connectionEditorTitle");
+  dialog.style.cssText = "box-sizing:border-box;width:min(520px,calc(100vw - 24px));" +
+    "max-height:85vh;overflow-y:auto;border:1px solid #cbd5e1;border-radius:12px;" +
+    "padding:20px;background:#fff;color:#111;box-shadow:0 16px 44px rgba(0,0,0,.22);" +
+    "font-family:inherit;font-size:14px;";
+
+  function addText(tag, text, css, parent) {
+    var element = document.createElement(tag);
+    element.textContent = text;
+    if (css) element.style.cssText = css;
+    (parent || dialog).appendChild(element);
+    return element;
+  }
+
+  var title = addText("h2", "Manage connections", "margin:0 0 8px;font-size:20px;");
+  title.id = "connectionEditorTitle";
+  addText("p", refNode.text, "margin:0 0 12px;font-weight:600;overflow-wrap:anywhere;");
+  addText("p", "Select the " + getLevelLabel(previousLevel) +
+    " items that should connect to this element.",
+    "margin:0 0 14px;color:#475569;");
+
+  var list = document.createElement("div");
+  list.style.cssText = "display:grid;gap:8px;margin-bottom:14px;";
+  dialog.appendChild(list);
+  var checkboxes = [];
+
+  candidates.forEach(function (candidate) {
+    var label = document.createElement("label");
+    label.style.cssText = "display:flex;align-items:flex-start;gap:10px;" +
+      "padding:10px;border:1px solid #d1d5db;border-radius:8px;" +
+      "cursor:pointer;margin:0;min-height:44px;box-sizing:border-box;";
+
+    var checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = candidate.id;
+    checkbox.checked = connectedIds.indexOf(candidate.id) !== -1 ||
+      refNode.parentId === candidate.id;
+    checkbox.style.cssText = "width:18px;height:18px;margin:2px 0 0;" +
+      "flex-shrink:0;accent-color:#005eb8;";
+    label.appendChild(checkbox);
+
+    var details = document.createElement("span");
+    details.style.cssText = "display:block;min-width:0;overflow-wrap:anywhere;";
+    addText("span", candidate.text, "display:block;font-weight:600;", details);
+    if (refNode.parentId === candidate.id) {
+      addText("small", "Current main parent (sets layout position)",
+        "display:block;color:#005eb8;margin-top:3px;", details);
+    }
+    var ancestor = nodes.find(function (n) { return n.id === candidate.parentId; });
+    if (ancestor && candidates.length > 1) {
+      addText("small", "Under: " + ancestor.text,
+        "display:block;color:#64748b;margin-top:3px;", details);
+    }
+    label.appendChild(details);
+    list.appendChild(label);
+    checkboxes.push(checkbox);
+  });
+
+  addText("p", "If the main parent is unticked, another selected parent " +
+    "will become the main parent. Leaving all boxes unticked removes " +
+    "all incoming connections but keeps the element.",
+    "margin:0 0 16px;font-size:12px;color:#475569;");
+
+  var actions = document.createElement("div");
+  actions.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;";
+  dialog.appendChild(actions);
+
+  var cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.style.cssText = "background:#e8edf5;color:#005eb8;";
+  actions.appendChild(cancel);
+
+  var save = document.createElement("button");
+  save.type = "button";
+  save.textContent = "Save connections";
+  actions.appendChild(save);
+
+  dialog.addEventListener("close", function () {
+    dialog.remove();
+    // Rendering recreates diagram buttons: restore focus to the new one.
+    var boxes = document.querySelectorAll(".diagram-node");
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].getAttribute("data-id") === nodeId) {
+        var button = boxes[i].querySelector(".diagram-add-left");
+        if (button) button.focus();
+        break;
+      }
+    }
+  });
+
+  cancel.addEventListener("click", function () { dialog.close(); });
+  save.addEventListener("click", function () {
+    var selectedIds = checkboxes.filter(function (input) {
+      return input.checked;
+    }).map(function (input) { return input.value; });
+
+    // Leave other nodes and their connections completely untouched.
+    connections = connections.filter(function (c) { return c.toId !== nodeId; });
+    selectedIds.forEach(function (parentId) {
+      connections.push({ fromId: parentId, toId: nodeId });
+    });
+
+    // Keep the original main parent when still selected.
+    if (selectedIds.indexOf(refNode.parentId) === -1) {
+      refNode.parentId = selectedIds.length ? selectedIds[0] : "";
+    }
+
+    dialog.close();
+    updateAllViews();
+  });
+
+  document.body.appendChild(dialog);
+  dialog.showModal();
+  if (checkboxes.length) checkboxes[0].focus();
 }
+
 
 
 function addChildForNode(nodeId) {

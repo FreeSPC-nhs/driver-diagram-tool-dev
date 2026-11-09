@@ -1405,6 +1405,26 @@ var fs  = diagramAppearance && diagramAppearance.fontSize ? diagramAppearance.fo
 // Use the column stack width if available; fall back to a sensible number.
 var heightById = {};
 nodes.forEach(function (n) {
+
+
+// B1.2: Give the temporary inline editor enough room.
+if (activeDiagramTextEdit &&
+    activeDiagramTextEdit.id === n.id) {
+
+  var editMeasuresFont = Math.max(10, fs - 3);
+
+  heightById[n.id] = Math.max(
+    measuredItemHeightsById[n.id] || 0,
+    96 + estimateMeasuresHeightPx(
+      n.measures,
+      editMeasuresFont
+    )
+  );
+
+  return;
+}
+
+
   // If we already measured the whole wrapper (box + measures), use that.
   if (measuredItemHeightsById && measuredItemHeightsById[n.id]) {
     heightById[n.id] = measuredItemHeightsById[n.id];
@@ -1537,6 +1557,34 @@ box.style.wordBreak = "break-word";
 box.style.overflowWrap = "anywhere";
 box.setAttribute("data-id", node.id);
 
+
+/* B1.2: Select a diagram element */
+
+box.tabIndex = 0;
+box.setAttribute("role", "group");
+box.setAttribute(
+  "aria-label",
+  getLevelLabel(level) + ": " + node.text
+);
+
+if (selectedDiagramNodeId === node.id) {
+  box.classList.add("diagram-selected");
+}
+
+box.addEventListener("click", function () {
+  selectDiagramNode(node.id);
+});
+
+box.addEventListener("keydown", function (e) {
+  if (e.target !== box) return;
+
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    selectDiagramNode(node.id);
+  }
+});
+
+
 // IMPORTANT: box is no longer absolute-positioned
 box.style.position = "relative";
 
@@ -1646,15 +1694,63 @@ if (nextLevel) {
   box.appendChild(rightBtn);
 }
 
-// Text content
-var textSpan = document.createElement("span");
-textSpan.textContent = node.text;
-textSpan.title = "Click to edit text";
-textSpan.addEventListener("click", function (e) {
-  e.stopPropagation();
-  editNode(node.id);
-});
-box.appendChild(textSpan);
+
+/* B1.2: Display text or an inline editor */
+
+if (activeDiagramTextEdit &&
+    activeDiagramTextEdit.id === node.id) {
+
+  box.classList.add("diagram-text-editing");
+  box.style.height = "auto";
+
+  var inlineInput = document.createElement("textarea");
+  inlineInput.id = "diagramInlineText";
+  inlineInput.className = "diagram-inline-text";
+  inlineInput.rows = 3;
+  inlineInput.value = activeDiagramTextEdit.draft;
+
+  inlineInput.setAttribute(
+    "aria-label",
+    "Edit " + getLevelLabel(node.level) + " text"
+  );
+
+  inlineInput.addEventListener("click", function (e) {
+    e.stopPropagation();
+  });
+
+  inlineInput.addEventListener("input", function () {
+    activeDiagramTextEdit.draft = inlineInput.value;
+
+    document.getElementById(
+      "diagramEditFeedback"
+    ).textContent =
+      "Editing inside the box. Ctrl+Enter to save; Escape to cancel.";
+  });
+
+  inlineInput.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      cancelDiagramInlineText();
+    } else if (
+      e.key === "Enter" && (e.ctrlKey || e.metaKey)
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      saveDiagramInlineText();
+    }
+  });
+
+  box.appendChild(inlineInput);
+
+} else {
+
+  var textSpan = document.createElement("span");
+  textSpan.className = "diagram-node-text";
+  textSpan.textContent = node.text;
+  box.appendChild(textSpan);
+
+}
 
 // Put the coloured box into the wrapper
 item.appendChild(box);
@@ -2066,6 +2162,8 @@ function updateAllViews() {
   renderColorOptionsList();
   renderLegend();
   updateLegendVisibility();
+  updateDiagramSelectionBar();
+
 }
 
 /* ---------- Actions from the form ---------- */
@@ -2113,24 +2211,129 @@ if (parentId) {
 
 /* ---------- Edit existing node ---------- */
 
+
+/* B1.2: Selection and inline editing */
+
+var selectedDiagramNodeId = null;
+var activeDiagramTextEdit = null;
+
+function selectDiagramNode(nodeId) {
+  // Do not discard an unfinished edit.
+  if (activeDiagramTextEdit &&
+      activeDiagramTextEdit.id !== nodeId) {
+    document.getElementById("diagramEditFeedback").textContent =
+      "Save or cancel the current edit first.";
+    return;
+  }
+
+  selectedDiagramNodeId = nodeId;
+
+  document.querySelectorAll(".diagram-node").forEach(
+    function (box) {
+      box.classList.toggle(
+        "diagram-selected",
+        box.getAttribute("data-id") === nodeId
+      );
+    }
+  );
+
+  updateDiagramSelectionBar();
+}
+
+function updateDiagramSelectionBar() {
+  var bar = document.getElementById("diagramSelectionBar");
+  if (!bar) return;
+
+  var node = nodes.find(function (n) {
+    return n.id === selectedDiagramNodeId;
+  });
+
+  if (!node) {
+    selectedDiagramNodeId = null;
+    activeDiagramTextEdit = null;
+    bar.hidden = true;
+    return;
+  }
+
+  bar.hidden = false;
+
+  document.getElementById(
+    "diagramSelectedDescription"
+  ).textContent = getLevelLabel(node.level) + ": " + node.text;
+
+  var editing = !!activeDiagramTextEdit;
+
+  document.getElementById("diagramEditTextBtn").hidden = editing;
+  document.getElementById("diagramSaveTextBtn").hidden = !editing;
+  document.getElementById("diagramCancelTextBtn").hidden = !editing;
+
+  document.getElementById("diagramEditFeedback").textContent =
+    editing
+      ? "Editing inside the box. Ctrl+Enter to save; Escape to cancel."
+      : "";
+}
+
 function editNode(nodeId) {
   var node = nodes.find(function (n) {
     return n.id === nodeId;
   });
-  if (!node) return;
 
-  var newText = window.prompt("Edit text for this item:", node.text);
-  if (newText === null) {
-    // user pressed Cancel
+  if (!node || activeDiagramTextEdit) return;
+
+  selectedDiagramNodeId = nodeId;
+
+  activeDiagramTextEdit = {
+    id: nodeId,
+    draft: node.text
+  };
+
+  renderDiagram();
+  updateDiagramSelectionBar();
+
+  var input = document.getElementById("diagramInlineText");
+
+  if (input) {
+    input.focus();
+    input.select();
+  }
+}
+
+function saveDiagramInlineText() {
+  if (!activeDiagramTextEdit) return;
+
+  var id = activeDiagramTextEdit.id;
+  var input = document.getElementById("diagramInlineText");
+
+  var nextText = (
+    input ? input.value : activeDiagramTextEdit.draft
+  ).trim();
+
+  if (!nextText) {
+    document.getElementById("diagramEditFeedback").textContent =
+      "Text cannot be empty.";
+    if (input) input.focus();
     return;
   }
-  newText = newText.trim();
-  if (!newText) {
-    alert("Text cannot be empty.");
-    return;
-  }
 
-  node.text = newText;
+  var node = nodes.find(function (n) {
+    return n.id === id;
+  });
+
+  if (node) node.text = nextText;
+
+  activeDiagramTextEdit = null;
+
+  // Recalculate the box height after editing.
+  delete measuredBoxHeightsById[id];
+  delete measuredItemHeightsById[id];
+
+  updateAllViews();
+}
+
+function cancelDiagramInlineText() {
+  if (!activeDiagramTextEdit) return;
+
+  activeDiagramTextEdit = null;
   updateAllViews();
 }
 
@@ -4025,6 +4228,36 @@ document.addEventListener("DOMContentLoaded", function () {
   var btnHelp = document.getElementById("btnHelp");
   var helpOverlay = document.getElementById("helpOverlay");
   var helpCloseBtn = document.getElementById("helpCloseBtn");
+
+
+// B1.2: Selection bar buttons
+
+var editTextBtn = document.getElementById("diagramEditTextBtn");
+var saveTextBtn = document.getElementById("diagramSaveTextBtn");
+var cancelTextBtn = document.getElementById("diagramCancelTextBtn");
+
+if (editTextBtn) {
+  editTextBtn.addEventListener("click", function () {
+    if (selectedDiagramNodeId) {
+      editNode(selectedDiagramNodeId);
+    }
+  });
+}
+
+if (saveTextBtn) {
+  saveTextBtn.addEventListener(
+    "click",
+    saveDiagramInlineText
+  );
+}
+
+if (cancelTextBtn) {
+  cancelTextBtn.addEventListener(
+    "click",
+    cancelDiagramInlineText
+  );
+}
+
 
 var exportArea = document.getElementById("exportArea");
 if (exportArea) {

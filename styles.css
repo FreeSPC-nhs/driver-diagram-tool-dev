@@ -874,3 +874,71 @@ dialog.quick-colour-dialog::backdrop {
   outline: 3px solid #ffbf47;
   outline-offset: 2px;
 }
+
+
+/* B2.2 — Direct measure selection */
+
+.diagram-measure-row {
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.diagram-measure-row:hover {
+  background: rgba(0, 94, 184, 0.06);
+}
+
+.diagram-measure-row.diagram-measure-selected {
+  outline: 2px solid #005eb8;
+  outline-offset: 2px;
+  background: rgba(0, 94, 184, 0.08);
+}
+
+.diagram-measure-row:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 3px;
+}
+
+/* Compact right-click menu for an individual measure */
+
+.diagram-measure-context-menu {
+  position: fixed;
+  z-index: 11000;
+  min-width: 170px;
+  padding: 5px;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+}
+
+.diagram-measure-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  background: transparent;
+  color: #111;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.diagram-measure-context-menu button:hover,
+.diagram-measure-context-menu button:focus-visible {
+  background: #eef5fc;
+}
+
+.diagram-measure-context-menu button:focus-visible {
+  outline: 2px solid #005eb8;
+  outline-offset: -2px;
+}
+
+/* Selection styling is for editing only, not exported diagrams. */
+
+.export-clean .diagram-measure-row {
+  background: transparent !important;
+  outline: none !important;
+}
+

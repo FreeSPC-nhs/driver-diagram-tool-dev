@@ -302,6 +302,7 @@ function editMeasureOnNode(nodeId, measureIndex) {
 
   // ---- Build a small modal dialog (same style as addMeasureToNode) ----
   var overlay = document.createElement("div");
+overlay.className = "diagram-measure-editor-overlay";
   overlay.style.position = "fixed";
   overlay.style.left = "0";
   overlay.style.top = "0";
@@ -466,6 +467,11 @@ function deleteMeasureOnNode(nodeId, measureIndex) {
   var msg = "Delete this measure?\n\n" + (m.text || "");
   if (!window.confirm(msg)) return;
 
+if (selectedDiagramMeasure &&
+    selectedDiagramMeasure.nodeId === nodeId) {
+  clearSelectedDiagramMeasure();
+}
+
   n.measures.splice(measureIndex, 1);
   updateAllViews();
 }
@@ -476,6 +482,11 @@ function clearMeasuresFromNode(nodeId) {
   if (!n.measures || !n.measures.length) return;
 
   if (!window.confirm("Remove all measures from this item?")) return;
+
+if (selectedDiagramMeasure &&
+    selectedDiagramMeasure.nodeId === nodeId) {
+  clearSelectedDiagramMeasure();
+}
   n.measures = [];
   updateAllViews();
 }
@@ -1805,27 +1816,113 @@ if (node.measures && node.measures.length) {
   measuresWrap.style.color = "#111";
   measuresWrap.style.background = "transparent";
 
-  node.measures.forEach(function (m) {
-    var row = document.createElement("div");
-    row.style.display = "flex";
-    row.style.gap = "6px";
-    row.style.alignItems = "flex-start";
+  
+node.measures.forEach(function (m, measureIndex) {
+  var row = document.createElement("div");
 
-    var meta = getMeasureTypeMeta((m && m.type) || "");
+  row.className = "diagram-measure-row";
+  row.dataset.nodeId = node.id;
+  row.dataset.measureIndex = String(measureIndex);
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
 
-    var icon = document.createElement("span");
-    icon.textContent = meta.icon;
-    icon.style.marginTop = "1px";
-    icon.style.color = meta.color;
-    icon.title = meta.label;
+  var meta = getMeasureTypeMeta((m && m.type) || "");
+  var measureText = (m && m.text) ? m.text : "";
 
-    var txt = document.createElement("span");
-    txt.textContent = (m && m.text) ? m.text : "";
+  row.setAttribute(
+    "aria-label",
+    meta.label + ": " + measureText
+  );
 
-    row.appendChild(icon);
-    row.appendChild(txt);
-    measuresWrap.appendChild(row);
+  var isSelected = !!selectedDiagramMeasure &&
+    selectedDiagramMeasure.nodeId === node.id &&
+    selectedDiagramMeasure.index === measureIndex;
+
+  row.setAttribute(
+    "aria-pressed",
+    isSelected ? "true" : "false"
+  );
+
+  if (isSelected) {
+    row.classList.add("diagram-measure-selected");
+  }
+
+  row.style.display = "flex";
+  row.style.gap = "6px";
+  row.style.alignItems = "flex-start";
+
+  var icon = document.createElement("span");
+  icon.textContent = meta.icon;
+  icon.style.marginTop = "1px";
+  icon.style.color = meta.color;
+  icon.title = meta.label;
+
+  var txt = document.createElement("span");
+  txt.textContent = measureText;
+
+  row.appendChild(icon);
+  row.appendChild(txt);
+
+  // Single click: select or deselect.
+  row.addEventListener("click", function (e) {
+    e.stopPropagation();
+    closeMeasureContextMenu();
+    selectDiagramMeasure(node.id, measureIndex, true);
   });
+
+  // Double-click: edit the specific measure.
+  row.addEventListener("dblclick", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (activeDiagramTextEdit) return;
+
+    selectDiagramMeasure(node.id, measureIndex, false);
+    editMeasureOnNode(node.id, measureIndex);
+  });
+
+  // Right-click: measure-specific actions.
+  row.addEventListener("contextmenu", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (activeDiagramTextEdit) return;
+
+    selectDiagramMeasure(node.id, measureIndex, false);
+
+    openMeasureContextMenu(
+      node.id, measureIndex, e.clientX, e.clientY
+    );
+  });
+
+  // Keyboard alternatives.
+  row.addEventListener("keydown", function (e) {
+    if (e.key === " ") {
+      e.preventDefault();
+      selectDiagramMeasure(node.id, measureIndex, true);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      selectDiagramMeasure(node.id, measureIndex, false);
+      editMeasureOnNode(node.id, measureIndex);
+    } else if (
+      e.key === "ContextMenu" ||
+      (e.shiftKey && e.key === "F10")
+    ) {
+      e.preventDefault();
+
+      selectDiagramMeasure(node.id, measureIndex, false);
+
+      var bounds = row.getBoundingClientRect();
+
+      openMeasureContextMenu(
+        node.id, measureIndex, bounds.left, bounds.bottom
+      );
+    }
+  });
+
+  measuresWrap.appendChild(row);
+});
+
 
   item.appendChild(measuresWrap);
 }
@@ -2258,6 +2355,117 @@ var selectedDiagramNodeId = null;
 var activeDiagramTextEdit = null;
 
 
+/* B2.2 — Direct measure selection */
+
+var selectedDiagramMeasure = null;
+var measureContextMenuEl = null;
+
+function updateMeasureSelectionVisuals() {
+  document.querySelectorAll(".diagram-measure-row").forEach(function (row) {
+    var selected = !!selectedDiagramMeasure &&
+      row.dataset.nodeId === selectedDiagramMeasure.nodeId &&
+      Number(row.dataset.measureIndex) === selectedDiagramMeasure.index;
+
+    row.classList.toggle("diagram-measure-selected", selected);
+    row.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+}
+
+function clearSelectedDiagramMeasure() {
+  selectedDiagramMeasure = null;
+  updateMeasureSelectionVisuals();
+}
+
+function selectDiagramMeasure(nodeId, index, toggle) {
+  // Do not interrupt unfinished driver text editing.
+  if (activeDiagramTextEdit) return;
+
+  var node = nodes.find(function (n) {
+    return n.id === nodeId;
+  });
+
+  if (!node || !Array.isArray(node.measures) || !node.measures[index]) {
+    return;
+  }
+
+  var isSame = selectedDiagramMeasure &&
+    selectedDiagramMeasure.nodeId === nodeId &&
+    selectedDiagramMeasure.index === index;
+
+  selectedDiagramMeasure = (toggle && isSame)
+    ? null
+    : { nodeId: nodeId, index: index };
+
+  // Only one driver or measure may be selected.
+  selectedDiagramNodeId = null;
+
+  document.querySelectorAll(".diagram-node.diagram-selected")
+    .forEach(function (box) {
+      box.classList.remove("diagram-selected");
+    });
+
+  updateDiagramSelectionBar();
+  updateMeasureSelectionVisuals();
+}
+
+function closeMeasureContextMenu() {
+  if (measureContextMenuEl) {
+    measureContextMenuEl.remove();
+    measureContextMenuEl = null;
+  }
+}
+
+function openMeasureContextMenu(nodeId, index, x, y) {
+  closeNodeContextMenu();
+  closeMeasureContextMenu();
+
+  var menu = document.createElement("div");
+  menu.className = "diagram-measure-context-menu";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", "Measure actions");
+
+  function addAction(label, action) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "menuitem");
+    button.textContent = label;
+
+    button.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMeasureContextMenu();
+      action();
+    });
+
+    menu.appendChild(button);
+  }
+
+  addAction("Edit measure…", function () {
+    editMeasureOnNode(nodeId, index);
+  });
+
+  addAction("Delete measure…", function () {
+    deleteMeasureOnNode(nodeId, index);
+  });
+
+  document.body.appendChild(menu);
+  measureContextMenuEl = menu;
+
+  // Keep the small menu within the visible browser window.
+  var bounds = menu.getBoundingClientRect();
+
+  menu.style.left = Math.max(
+    8, Math.min(x, window.innerWidth - bounds.width - 8)
+  ) + "px";
+
+  menu.style.top = Math.max(
+    8, Math.min(y, window.innerHeight - bounds.height - 8)
+  ) + "px";
+
+  menu.querySelector("button").focus();
+}
+
+
 function selectDiagramNode(nodeId) {
   // Do not change selection while editing text.
   if (activeDiagramTextEdit) {
@@ -2267,6 +2475,10 @@ function selectDiagramNode(nodeId) {
     }
     return;
   }
+
+// B2.2: Selecting a driver clears measure selection.
+clearSelectedDiagramMeasure();
+closeMeasureContextMenu();
 
   // Clicking the selected element again deselects it.
   selectedDiagramNodeId =
@@ -2326,6 +2538,9 @@ function editNode(nodeId) {
   });
 
   if (!node || activeDiagramTextEdit) return;
+
+clearSelectedDiagramMeasure();
+closeMeasureContextMenu();
 
   selectedDiagramNodeId = nodeId;
 
@@ -3181,7 +3396,8 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
       */
       htmlClone
         .querySelectorAll(
-          "#nodeContextMenu, .node-context-submenu, #quickColourDialog"
+          "#nodeContextMenu, .node-context-submenu, " +
+"#quickColourDialog, .diagram-measure-context-menu"
         )
         .forEach(function (element) {
           element.remove();
@@ -4065,41 +4281,13 @@ addSimpleSubmenu("Measures", function (addSubItem) {
 
   var hasMeasures = !!(n && n.measures && n.measures.length);
 
-  addSubItem("Edit measure…", function () {
-    var list = n.measures.map(function (m, i) {
-      return (i + 1) + ") " + (m.text || "");
-    }).join("\n");
-
-    var pick = window.prompt("Enter the measure number to edit:\n\n" + list, "1");
-    if (pick === null) return;
-
-    var idx = parseInt(pick, 10) - 1;
-    if (!isFinite(idx) || idx < 0 || idx >= n.measures.length) {
-      alert("That number is not valid.");
-      return;
-    }
-
-    editMeasureOnNode(id, idx);
-    closeNodeContextMenu();
-  }, !hasMeasures);
-
-  addSubItem("Delete measure…", function () {
-    var list = n.measures.map(function (m, i) {
-      return (i + 1) + ") " + (m.text || "");
-    }).join("\n");
-
-    var pick = window.prompt("Enter the measure number to delete:\n\n" + list, "1");
-    if (pick === null) return;
-
-    var idx = parseInt(pick, 10) - 1;
-    if (!isFinite(idx) || idx < 0 || idx >= n.measures.length) {
-      alert("That number is not valid.");
-      return;
-    }
-
-    deleteMeasureOnNode(id, idx);
-    closeNodeContextMenu();
-  }, !hasMeasures);
+  if (hasMeasures) {
+  addSubItem(
+    "Double-click a measure to edit; right-click for actions.",
+    null,
+    true
+  );
+}
 
   addSubItem("Clear all measures…", function () {
     clearMeasuresFromNode(id);
@@ -4450,6 +4638,54 @@ if (cancelTextBtn) {
     cancelDiagramInlineText
   );
 }
+
+
+/* B2.2 — Click-away and Escape for measures */
+
+document.addEventListener("click", function (e) {
+  if (activeDiagramTextEdit) return;
+
+  // Don't clear selection while a modal editor is open.
+  if (document.querySelector(
+    "dialog[open], .diagram-measure-editor-overlay"
+  )) return;
+
+  if (e.target.closest(
+    ".diagram-measure-row, " +
+    ".diagram-measure-context-menu, " +
+    ".diagram-measure-editor-overlay"
+  )) return;
+
+  closeMeasureContextMenu();
+
+  if (selectedDiagramMeasure) {
+    clearSelectedDiagramMeasure();
+  }
+});
+
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Escape") return;
+  if (activeDiagramTextEdit) return;
+
+  // Let an open editor handle Escape first.
+  if (document.querySelector(
+    "dialog[open], .diagram-measure-editor-overlay"
+  )) return;
+
+  closeMeasureContextMenu();
+
+  if (selectedDiagramMeasure) {
+    clearSelectedDiagramMeasure();
+  }
+});
+
+document.addEventListener(
+  "scroll", closeMeasureContextMenu, true
+);
+
+window.addEventListener(
+  "resize", closeMeasureContextMenu
+);
 
 
 /* B1.5: Deselect when clicking blank diagram space */

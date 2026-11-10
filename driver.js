@@ -1774,6 +1774,9 @@ box.style.wordBreak = "break-word";
 box.style.overflowWrap = "anywhere";
 box.setAttribute("data-id", node.id);
 
+// B3.4b: Enable mouse drag-to-reorder for siblings.
+enableDiagramNodeDrag(box, node);
+
 
 /* B1.2: Select a diagram element */
 
@@ -2752,7 +2755,178 @@ function createColorSelectForNode(node) {
   return select;
 }
 
+
+/* B3.4b: Drag sibling nodes without changing their relationships. */
+
+var diagramDraggingNodeId = null;
+var diagramDragTargetBox = null;
+
+function clearDiagramDragMarker() {
+  if (diagramDragTargetBox) {
+    diagramDragTargetBox.classList.remove(
+      "diagram-drop-before", "diagram-drop-after"
+    );
+    diagramDragTargetBox = null;
+  }
+
+  document.querySelectorAll(".diagram-dragging").forEach(
+    function (box) {
+      box.classList.remove("diagram-dragging");
+    }
+  );
+}
+
+function reorderDiagramSibling(fromId, toId, placeAfter) {
+  var source = nodes.find(function (n) {
+    return n.id === fromId;
+  });
+
+  var target = nodes.find(function (n) {
+    return n.id === toId;
+  });
+
+  if (!source || !target || source.id === target.id ||
+      source.level !== target.level ||
+      (source.parentId || "") !== (target.parentId || "")) {
+    return;
+  }
+
+  var slots = [];
+  var group = [];
+
+  nodes.forEach(function (n, index) {
+    if (n.level === source.level &&
+        (n.parentId || "") === (source.parentId || "")) {
+      slots.push(index);
+      group.push(n);
+    }
+  });
+
+  var before = group.map(function (n) {
+    return n.id;
+  }).join("|");
+
+  var fromIndex = group.findIndex(function (n) {
+    return n.id === fromId;
+  });
+
+  if (fromIndex < 0) return;
+
+  var moved = group.splice(fromIndex, 1)[0];
+
+  var targetIndex = group.findIndex(function (n) {
+    return n.id === toId;
+  });
+
+  if (targetIndex < 0) return;
+
+  group.splice(
+    targetIndex + (placeAfter ? 1 : 0),
+    0,
+    moved
+  );
+
+  if (group.map(function (n) {
+    return n.id;
+  }).join("|") === before) return;
+
+  slots.forEach(function (slot, index) {
+    nodes[slot] = group[index];
+  });
+
+  // One completed drag creates one Undo history entry.
+  updateAllViews();
+}
+
+function enableDiagramNodeDrag(box, node) {
+  if (node.level === "aim" ||
+      getSiblingIdsInOrder(node).length < 2) {
+    return;
+  }
+
+  box.draggable = true;
+
+  box.addEventListener("dragstart", function (event) {
+    if (
+      activeDiagramTextEdit ||
+      (event.target.closest &&
+       event.target.closest("button, textarea, input, select"))
+    ) {
+      event.preventDefault();
+      return;
+    }
+
+    diagramDraggingNodeId = node.id;
+    box.classList.add("diagram-dragging");
+
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", node.id);
+    }
+  });
+
+  box.addEventListener("dragover", function (event) {
+    var source = nodes.find(function (n) {
+      return n.id === diagramDraggingNodeId;
+    });
+
+    if (!source ||
+        source.id === node.id ||
+        source.level !== node.level ||
+        (source.parentId || "") !== (node.parentId || "")) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+
+    if (diagramDragTargetBox &&
+        diagramDragTargetBox !== box) {
+      diagramDragTargetBox.classList.remove(
+        "diagram-drop-before", "diagram-drop-after"
+      );
+    }
+
+    diagramDragTargetBox = box;
+
+    var rect = box.getBoundingClientRect();
+    var after = event.clientY > rect.top + rect.height / 2;
+
+    box.classList.toggle("diagram-drop-after", after);
+    box.classList.toggle("diagram-drop-before", !after);
+  });
+
+  box.addEventListener("drop", function (event) {
+    if (!diagramDraggingNodeId ||
+        diagramDragTargetBox !== box) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    var fromId = diagramDraggingNodeId;
+    var after = box.classList.contains(
+      "diagram-drop-after"
+    );
+
+    diagramDraggingNodeId = null;
+    clearDiagramDragMarker();
+
+    reorderDiagramSibling(fromId, node.id, after);
+  });
+
+  box.addEventListener("dragend", function () {
+    diagramDraggingNodeId = null;
+    clearDiagramDragMarker();
+  });
+}
+
 // --- Manual reordering helpers (reorders within same parentId + same level) ---
+
 function getSiblingIdsInOrder(node) {
   var pid = node.parentId || "";
   var lvl = node.level;

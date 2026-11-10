@@ -1328,3 +1328,57 @@ dialog.quick-colour-dialog::backdrop {
 }
 
 
+/* B3.4b — Mouse drag-to-reorder */
+
+.diagram-node[draggable="true"] {
+  cursor: grab;
+}
+
+.diagram-node.diagram-dragging {
+  opacity: 0.65;
+  outline: 2px dashed #005eb8;
+  outline-offset: 2px;
+  cursor: grabbing;
+}
+
+/* Blue insertion markers. No permanent spacing added. */
+
+.diagram-node.diagram-drop-before::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  border-top: 4px solid #005eb8;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.diagram-node.diagram-drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  border-bottom: 4px solid #005eb8;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.diagram-node[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* Do not export temporary drag indicators */
+
+.export-clean .diagram-node.diagram-dragging {
+  opacity: 1;
+  outline: none;
+}
+
+.export-clean .diagram-node.diagram-drop-before::before,
+.export-clean .diagram-node.diagram-drop-after::after {
+  display: none;
+}
+
+

@@ -437,8 +437,38 @@ overlay.className = "diagram-measure-editor-overlay";
     updateAllViews();
   });
 
+  
+  // B2.4: Delete the measure directly from its editor.
+  var deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.textContent = "Delete measure";
+  deleteBtn.title = "Delete this measure";
+  deleteBtn.style.padding = "8px 12px";
+  deleteBtn.style.marginRight = "auto";
+  deleteBtn.style.borderRadius = "8px";
+  deleteBtn.style.border = "1px solid #b91c1c";
+  deleteBtn.style.background = "#ffffff";
+  deleteBtn.style.color = "#b91c1c";
+  deleteBtn.style.cursor = "pointer";
+
+  deleteBtn.addEventListener("click", function () {
+    // Reuse the existing confirmation and deletion logic.
+    deleteMeasureOnNode(nodeId, measureIndex);
+
+    // Keep the editor open if deletion was cancelled.
+    // Close it only if this exact measure was removed.
+    if (n.measures.indexOf(m) === -1) {
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+      document.removeEventListener("keydown", escHandler);
+    }
+  });
+
+  btnRow.appendChild(deleteBtn);
   btnRow.appendChild(cancelBtn);
   btnRow.appendChild(saveBtn);
+
   dialog.appendChild(btnRow);
 
   overlay.appendChild(dialog);

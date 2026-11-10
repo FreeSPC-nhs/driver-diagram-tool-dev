@@ -299,13 +299,20 @@ function addMeasureToNode(nodeId) {
   setTimeout(function () { textInput.focus(); }, 0);
 
   // Allow Escape to close
+
   function escHandler(e) {
-    if (e.key === "Escape") {
-      if (overlay.parentNode) document.body.removeChild(overlay);
-      document.removeEventListener("keydown", escHandler);
+    if (e.key !== "Escape") return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (overlay.parentNode) {
+      overlay.remove();
     }
   }
-  document.addEventListener("keydown", escHandler);
+
+  // The listener is removed automatically with the editor.
+  overlay.addEventListener("keydown", escHandler);
 }
 
 function editMeasureOnNode(nodeId, measureIndex) {
@@ -478,7 +485,6 @@ overlay.className = "diagram-measure-editor-overlay";
       if (overlay.parentNode) {
         overlay.parentNode.removeChild(overlay);
       }
-      document.removeEventListener("keydown", escHandler);
     }
   });
 
@@ -493,13 +499,20 @@ overlay.className = "diagram-measure-editor-overlay";
 
   setTimeout(function () { textInput.focus(); }, 0);
 
+
   function escHandler(e) {
-    if (e.key === "Escape") {
-      if (overlay.parentNode) document.body.removeChild(overlay);
-      document.removeEventListener("keydown", escHandler);
+    if (e.key !== "Escape") return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (overlay.parentNode) {
+      overlay.remove();
     }
   }
-  document.addEventListener("keydown", escHandler);
+
+  // The listener is removed automatically with the editor.
+  overlay.addEventListener("keydown", escHandler);
 }
 
 function deleteMeasureOnNode(nodeId, measureIndex) {
@@ -1556,7 +1569,12 @@ function renderDiagram() {
 
 
 // Prevent the browser context menu anywhere inside the diagram area
+
 [canvas, columnsContainer, svg].forEach(function (el) {
+  // Register only once per persistent element.
+  if (el._diagramContextMenuGuardInstalled) return;
+  el._diagramContextMenuGuardInstalled = true;
+
   el.addEventListener("contextmenu", function (e) {
     e.preventDefault();
   });

@@ -4551,8 +4551,7 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
         .querySelectorAll(
           "#nodeContextMenu, .node-context-submenu, " +
 "#quickColourDialog, .diagram-measure-context-menu, " +
-".diagram-quick-add-measure, .diagram-connection-hit, " +
-".zoom-redraw-notice"
+".diagram-quick-add-measure, .diagram-connection-hit " 
         )
         
         .forEach(function (element) {
@@ -5854,20 +5853,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 /* B4.1b.1 — Refresh lines after browser zoom or resizing. */
 
-var zoomRedrawNotice = document.createElement("div");
-zoomRedrawNotice.className = "zoom-redraw-notice";
-zoomRedrawNotice.hidden = true;
-
-zoomRedrawNotice.innerHTML =
-  '<span>Connections refreshed after a screen or zoom change.</span>' +
-  '<button type="button" class="zoom-redraw-again">↻ Redraw lines</button>' +
-  '<button type="button" class="zoom-redraw-close" aria-label="Dismiss notification" title="Dismiss">×</button>';
-
-document.body.appendChild(zoomRedrawNotice);
-
 var zoomRedrawTimer = null;
-var zoomNoticeTimer = null;
-var zoomNoticeRequested = false;
 
 function redrawLinesForViewport() {
   var canvas = document.getElementById("diagramCanvas");
@@ -5878,55 +5864,33 @@ function redrawLinesForViewport() {
   }
 }
 
-function showZoomRedrawNotice() {
-  zoomRedrawNotice.hidden = false;
 
-  clearTimeout(zoomNoticeTimer);
-
-  zoomNoticeTimer = setTimeout(function () {
-    zoomRedrawNotice.hidden = true;
-  }, 10000);
-}
-
-function redrawLinesAfterLayout(onComplete) {
-  function redraw() {
-    redrawLinesForViewport();
-
-    if (onComplete) {
-      onComplete();
-    }
-  }
-
-  // Allow the browser to finish its layout calculations.
+function redrawLinesAfterLayout() {
+  // Allow the browser to finish recalculating layout.
   if (window.requestAnimationFrame) {
     window.requestAnimationFrame(function () {
-      window.requestAnimationFrame(redraw);
+      window.requestAnimationFrame(function () {
+        redrawLinesForViewport();
+      });
     });
   } else {
-    redraw();
+    redrawLinesForViewport();
   }
 }
 
-function scheduleViewportLineRedraw(showNotice) {
-  zoomNoticeRequested =
-    zoomNoticeRequested || !!showNotice;
-
+function scheduleViewportLineRedraw() {
   clearTimeout(zoomRedrawTimer);
 
-  // Wait briefly for zooming or resizing to settle.
+  // Wait briefly for zoom or resizing to settle.
   zoomRedrawTimer = setTimeout(function () {
-    var showAfterRedraw = zoomNoticeRequested;
-    zoomNoticeRequested = false;
-
-    redrawLinesAfterLayout(
-      showAfterRedraw ? showZoomRedrawNotice : null
-    );
+    redrawLinesAfterLayout();
   }, 180);
 }
 
+
 // Standard browser zoom and window resizing.
 window.addEventListener("resize", function () {
-  scheduleViewportLineRedraw(true);
+  scheduleViewportLineRedraw();
 });
 
 // Pinch zoom and visual viewport changes.
@@ -5943,7 +5907,7 @@ if (window.visualViewport) {
 if (window.ResizeObserver) {
   var zoomLineObserver = new window.ResizeObserver(
     function () {
-      scheduleViewportLineRedraw(false);
+      scheduleViewportLineRedraw();
     }
   );
 
@@ -5954,27 +5918,6 @@ if (window.ResizeObserver) {
     zoomLineObserver.observe(diagramToObserve);
   }
 }
-
-// Don't let notification clicks select/deselect elements.
-zoomRedrawNotice.addEventListener("click", function (e) {
-  e.stopPropagation();
-});
-
-// Manual redraw fallback.
-zoomRedrawNotice.querySelector(".zoom-redraw-again")
-  .addEventListener("click", function () {
-    clearTimeout(zoomRedrawTimer);
-    zoomNoticeRequested = false;
-
-    redrawLinesAfterLayout(showZoomRedrawNotice);
-  });
-
-// Dismiss notification.
-zoomRedrawNotice.querySelector(".zoom-redraw-close")
-  .addEventListener("click", function () {
-    zoomRedrawNotice.hidden = true;
-    clearTimeout(zoomNoticeTimer);
-  });
 
   console.log("Driver Diagram Tool loaded with header controls and export.");
 

@@ -3181,7 +3181,7 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
       */
       htmlClone
         .querySelectorAll(
-          "#nodeContextMenu, .node-context-submenu"
+          "#nodeContextMenu, .node-context-submenu, #quickColourDialog"
         )
         .forEach(function (element) {
           element.remove();
@@ -3777,6 +3777,89 @@ function closeHelpOverlay() {
   overlay.setAttribute("aria-hidden", "true");
 }
 
+
+function openQuickColourDialogForNode(nodeId) {
+  var targetNode = nodes.find(function (n) { return n.id === nodeId; });
+  if (!targetNode || document.getElementById("quickColourDialog")) return;
+
+  var dialog = document.createElement("dialog");
+  dialog.id = "quickColourDialog";
+  dialog.className = "quick-colour-dialog";
+  dialog.innerHTML =
+    '<form id="quickColourForm">' +
+      '<h2 id="quickColourTitle">Create and apply colour</h2>' +
+      '<p id="quickColourTarget" class="quick-colour-target"></p>' +
+      '<label for="quickColourName">Colour name (optional)</label>' +
+      '<input id="quickColourName" type="text" maxlength="80" ' +
+        'placeholder="e.g. Workforce improvement">' +
+      '<label for="quickColourValue">Choose colour</label>' +
+      '<input id="quickColourValue" type="color">' +
+      '<p id="quickColourError" class="quick-colour-error" role="alert"></p>' +
+      '<div class="quick-colour-actions">' +
+        '<button type="button" class="secondary" id="quickColourCancel">Cancel</button>' +
+        '<button type="submit">Save and apply</button>' +
+      '</div>' +
+    '</form>';
+
+  var nameInput = dialog.querySelector("#quickColourName");
+  var colourInput = dialog.querySelector("#quickColourValue");
+  var errorText = dialog.querySelector("#quickColourError");
+  dialog.querySelector("#quickColourTarget").textContent =
+    "Selected element: " + targetNode.text;
+  colourInput.value = defaultNewColorValue;
+
+  dialog.querySelector("#quickColourCancel").addEventListener("click", function () {
+    dialog.close();
+  });
+
+  dialog.querySelector("#quickColourForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    var colour = colourInput.value.toLowerCase();
+    var label = nameInput.value.trim();
+
+    if (!/^#[0-9a-f]{6}$/.test(colour)) {
+      errorText.textContent = "Choose a valid colour.";
+      colourInput.focus();
+      return;
+    }
+
+    var existing = findColorOptionByValue(colour);
+    if (existing) {
+      errorText.textContent = 'That colour already exists as "' +
+        existing.label + '". Cancel and select it from the menu.';
+      colourInput.focus();
+      return;
+    }
+
+    // Generate a unique default name when the name is blank.
+    if (!label) {
+      var number = 1;
+      while (colorOptions.some(function (option) {
+        return option.label.toLowerCase() === ("colour " + number);
+      })) number++;
+      label = "Colour " + number;
+    }
+
+    var currentNode = nodes.find(function (n) { return n.id === nodeId; });
+    if (!currentNode) {
+      errorText.textContent = "This element is no longer available.";
+      return;
+    }
+
+    colorOptions.push({ label: label, value: colour });
+    currentNode.color = colour;
+    updateAllViews();
+    dialog.close();
+  });
+
+  dialog.addEventListener("close", function () { dialog.remove(); });
+  document.body.appendChild(dialog);
+  dialog.showModal();
+  nameInput.focus();
+}
+
+
 function ensureNodeContextMenu() {
   if (nodeContextMenuEl) return;
 
@@ -4139,6 +4222,20 @@ function addColorSubmenu(label) {
       closeNodeContextMenu();
     });
 
+
+    function addNewColourMenuItem() {
+      var separator = document.createElement("div");
+      separator.className = "quick-colour-menu-divider";
+      sub.appendChild(separator);
+
+      addSubItem("＋ New colour…", function () {
+        var targetId = n.id;
+        closeNodeContextMenu();
+        openQuickColourDialogForNode(targetId);
+      });
+    }
+
+
     var hr = document.createElement("div");
     hr.style.height = "1px";
     hr.style.background = "#eaeef2";
@@ -4152,6 +4249,7 @@ function addColorSubmenu(label) {
       msg.style.color = "#6b7280";
       msg.style.userSelect = "none";
       sub.appendChild(msg);
+      addNewColourMenuItem();
       return;
     }
 
@@ -4193,8 +4291,10 @@ function addColorSubmenu(label) {
         closeNodeContextMenu();
       });
 
-      sub.appendChild(btn);
+            sub.appendChild(btn);
     });
+
+    addNewColourMenuItem();
   }
 
   function positionSubmenu() {
@@ -4349,6 +4449,42 @@ if (cancelTextBtn) {
     "click",
     cancelDiagramInlineText
   );
+}
+
+
+/* B1.5: Deselect when clicking blank diagram space */
+
+var diagramClickSurface =
+  document.getElementById("diagramCanvasWrapper");
+
+if (diagramClickSurface) {
+  diagramClickSurface.addEventListener("click", function (e) {
+
+    // Never discard text that is being edited.
+    if (activeDiagramTextEdit) return;
+
+    // Do not deselect when clicking a diagram item
+    // or an editable column heading.
+    if (e.target.closest(
+      ".diagram-item, .diagram-column-title"
+    )) {
+      return;
+    }
+
+    // Nothing to deselect.
+    if (selectedDiagramNodeId === null) return;
+
+    // Clear the selection without redrawing the diagram.
+    selectedDiagramNodeId = null;
+
+    document.querySelectorAll(
+      ".diagram-node.diagram-selected"
+    ).forEach(function (box) {
+      box.classList.remove("diagram-selected");
+    });
+
+    updateDiagramSelectionBar();
+  });
 }
 
 

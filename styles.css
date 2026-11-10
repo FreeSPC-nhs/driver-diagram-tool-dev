@@ -1047,3 +1047,80 @@ dialog.quick-colour-dialog::backdrop {
   outline: 3px solid #ffbf47;
   outline-offset: 3px;
 }
+
+
+/* B3.3 — Individual connection formatting */
+
+#connectionFormatBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  margin-bottom: 12px;
+  background: #eef5fc;
+  border: 1px solid #b8cce3;
+  border-radius: 6px;
+}
+
+#connectionFormatBar[hidden] {
+  display: none !important;
+}
+
+#connectionFormatLabel {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+#connectionFormatBar label {
+  margin: 0;
+}
+
+#connectionFormatSelect {
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+}
+
+/* Allow SVG lines to receive clicks in the gaps
+   while keeping the diagram boxes interactive. */
+
+#diagramConnections {
+  z-index: 1;
+  pointer-events: none;
+}
+
+#diagramColumns {
+  z-index: 2;
+  pointer-events: none;
+}
+
+#diagramColumns .diagram-item,
+#diagramColumns .diagram-column-title {
+  pointer-events: auto;
+}
+
+/* Wide invisible hit paths make lines easier to select. */
+
+#diagramConnections .diagram-connection-hit {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+#diagramConnections .diagram-connection-hit:focus-visible {
+  stroke: rgba(0, 94, 184, 0.25);
+}
+
+/* Export selected lines in their normal appearance. */
+
+.export-clean .diagram-connection-hit {
+  display: none !important;
+}
+
+.export-clean .diagram-connection-visible[data-selected="true"] {
+  stroke: #666 !important;
+  stroke-width: 2.5 !important;
+}
+

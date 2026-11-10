@@ -275,6 +275,29 @@
 </div>
 
 
+<!-- B3.3: Individual connection formatting -->
+<div id="connectionFormatBar" role="group"
+     aria-label="Selected connection" hidden>
+
+  <strong id="connectionFormatLabel"></strong>
+
+  <label for="connectionFormatSelect">Line style</label>
+
+  <select id="connectionFormatSelect">
+    <option value="default">Use diagram default</option>
+    <option value="straight">Straight</option>
+    <option value="orthogonal">Orthogonal</option>
+    <option value="bezier">Bézier</option>
+  </select>
+
+  <button type="button" id="connectionFormatClear"
+          class="secondary">
+    Deselect
+  </button>
+</div>
+
+
+
       <!-- Export area: diagram + legend (used for PNG/PDF export) -->
       <div id="exportArea">
         <div id="diagramCanvasWrapper">

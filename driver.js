@@ -2264,7 +2264,126 @@ drawConnections(canvas, svg);
 }
 }
 
+
+
+
+/* B3.3: Individual connection selection */
+
+var selectedDiagramConnection = null;
+
+function normaliseConnectionOverride(value) {
+  return (
+    value === "straight" ||
+    value === "orthogonal" ||
+    value === "bezier"
+  ) ? value : "";
+}
+
+function findDiagramConnection(fromId, toId) {
+  return connections.find(function (c) {
+    return c.fromId === fromId && c.toId === toId;
+  });
+}
+
+function updateDiagramConnectionBar() {
+  var bar = document.getElementById("connectionFormatBar");
+  if (!bar) return;
+
+  var selected = selectedDiagramConnection;
+  var connection = selected && findDiagramConnection(
+    selected.fromId, selected.toId
+  );
+
+  if (!connection) {
+    selectedDiagramConnection = null;
+    bar.hidden = true;
+    return;
+  }
+
+  var from = nodes.find(function (n) {
+    return n.id === connection.fromId;
+  });
+
+  var to = nodes.find(function (n) {
+    return n.id === connection.toId;
+  });
+
+  if (!from || !to) {
+    selectedDiagramConnection = null;
+    bar.hidden = true;
+    return;
+  }
+
+  bar.hidden = false;
+
+  document.getElementById(
+    "connectionFormatLabel"
+  ).textContent = from.text + " → " + to.text;
+
+  document.getElementById(
+    "connectionFormatSelect"
+  ).value = normaliseConnectionOverride(
+    connection.style
+  ) || "default";
+}
+
+function clearDiagramConnectionSelection() {
+  if (!selectedDiagramConnection) return;
+
+  selectedDiagramConnection = null;
+  updateDiagramConnectionBar();
+
+  var canvas = document.getElementById("diagramCanvas");
+  var svg = document.getElementById("diagramConnections");
+
+  if (canvas && svg) {
+    drawConnections(canvas, svg);
+  }
+}
+
+function selectDiagramConnection(fromId, toId) {
+  if (
+    activeDiagramTextEdit ||
+    document.querySelector(
+      "dialog[open], .diagram-measure-editor-overlay"
+    )
+  ) return;
+
+  if (!findDiagramConnection(fromId, toId)) return;
+
+  var same = selectedDiagramConnection &&
+    selectedDiagramConnection.fromId === fromId &&
+    selectedDiagramConnection.toId === toId;
+
+  selectedDiagramConnection = same ? null : {
+    fromId: fromId,
+    toId: toId
+  };
+
+  selectedDiagramNodeId = null;
+  clearSelectedDiagramMeasure();
+  closeMeasureContextMenu();
+  closeNodeContextMenu();
+
+  document.querySelectorAll(
+    ".diagram-node.diagram-selected"
+  ).forEach(function (box) {
+    box.classList.remove("diagram-selected");
+  });
+
+  updateDiagramSelectionBar();
+  updateDiagramConnectionBar();
+
+  var canvas = document.getElementById("diagramCanvas");
+  var svg = document.getElementById("diagramConnections");
+
+  if (canvas && svg) {
+    drawConnections(canvas, svg);
+  }
+}
+
 function drawConnections(canvas, svg) {
+
   var canvasRect = canvas.getBoundingClientRect();
 
   // Clear previous lines
@@ -2304,9 +2423,8 @@ function drawConnections(canvas, svg) {
     var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     
 // B2.5: Draw the selected connection style.
-var connectionStyle = normaliseConnectionStyle(
-  diagramAppearance.connectionStyle
-);
+var connectionStyle = normaliseConnectionOverride(conn.style) ||
+  normaliseConnectionStyle(diagramAppearance.connectionStyle);
 
 var d;
 
@@ -2336,13 +2454,100 @@ if (connectionStyle === "straight") {
 }
 
 
+    
+    var selected = !!selectedDiagramConnection &&
+      selectedDiagramConnection.fromId === conn.fromId &&
+      selectedDiagramConnection.toId === conn.toId;
+
+    path.setAttribute("class", "diagram-connection-visible");
     path.setAttribute("d", d);
     path.setAttribute("fill", "none");
-    path.setAttribute("stroke", "#666");
-    path.setAttribute("stroke-width", "2.5");
+    path.setAttribute(
+      "stroke",
+      selected ? "#005eb8" : "#666"
+    );
+    path.setAttribute(
+      "stroke-width",
+      selected ? "3.5" : "2.5"
+    );
     path.setAttribute("stroke-linecap", "round");
+    path.setAttribute(
+      "data-selected",
+      selected ? "true" : "false"
+    );
 
     svg.appendChild(path);
+
+    // A wider invisible path makes selecting easier.
+    var hit = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "path"
+    );
+
+    hit.setAttribute("class", "diagram-connection-hit");
+    hit.setAttribute("d", d);
+    hit.setAttribute("fill", "none");
+    hit.setAttribute("stroke", "transparent");
+    hit.setAttribute("stroke-width", "16");
+    hit.setAttribute("pointer-events", "stroke");
+    hit.setAttribute("tabindex", "0");
+    hit.setAttribute("role", "button");
+
+    hit.setAttribute(
+      "aria-pressed",
+      selected ? "true" : "false"
+    );
+
+    var fromNode = nodes.find(function (n) {
+      return n.id === conn.fromId;
+    });
+
+    var toNode = nodes.find(function (n) {
+      return n.id === conn.toId;
+    });
+
+    hit.setAttribute(
+      "aria-label",
+      "Select connection from " +
+      (fromNode ? fromNode.text : conn.fromId) +
+      " to " +
+      (toNode ? toNode.text : conn.toId)
+    );
+
+    hit.addEventListener("click", function (event) {
+      event.stopPropagation();
+
+      selectDiagramConnection(
+        conn.fromId,
+        conn.toId
+      );
+    });
+
+    hit.addEventListener("keydown", function (event) {
+      if (
+        event.key !== "Enter" &&
+        event.key !== " "
+      ) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      selectDiagramConnection(
+        conn.fromId,
+        conn.toId
+      );
+
+      var select = document.getElementById(
+        "connectionFormatSelect"
+      );
+
+      if (select && selectedDiagramConnection) {
+        select.focus();
+      }
+    });
+
+    svg.appendChild(hit);
+
   });
 
 }
@@ -2701,6 +2906,7 @@ function restoreDiagramHistory(index) {
     selectedDiagramNodeId = null;
     selectedDiagramMeasure = null;
     activeDiagramTextEdit = null;
+    selectedDiagramConnection = null;
 
     closeNodeContextMenu();
     closeMeasureContextMenu();
@@ -2749,6 +2955,7 @@ function updateAllViews() {
   renderLegend();
   updateLegendVisibility();
   updateDiagramSelectionBar();
+  updateDiagramConnectionBar();
 
 }
 
@@ -2836,6 +3043,8 @@ function selectDiagramMeasure(nodeId, index, toggle) {
   if (!node || !Array.isArray(node.measures) || !node.measures[index]) {
     return;
   }
+
+  clearDiagramConnectionSelection();
 
   var isSame = selectedDiagramMeasure &&
     selectedDiagramMeasure.nodeId === nodeId &&
@@ -2925,9 +3134,11 @@ function selectDiagramNode(nodeId) {
     return;
   }
 
+
 // B2.2: Selecting a driver clears measure selection.
 clearSelectedDiagramMeasure();
 closeMeasureContextMenu();
+clearDiagramConnectionSelection();
 
   // Clicking the selected element again deselects it.
   selectedDiagramNodeId =
@@ -2986,10 +3197,11 @@ function editNode(nodeId) {
     return n.id === nodeId;
   });
 
-  if (!node || activeDiagramTextEdit) return;
+    if (!node || activeDiagramTextEdit) return;
 
 clearSelectedDiagramMeasure();
 closeMeasureContextMenu();
+clearDiagramConnectionSelection();
 
   selectedDiagramNodeId = nodeId;
 
@@ -3326,9 +3538,23 @@ function handleConnectionButtonClick(nodeId) {
     }).map(function (input) { return input.value; });
 
     // Leave other nodes and their connections completely untouched.
-    connections = connections.filter(function (c) { return c.toId !== nodeId; });
+
+    connections = connections.filter(function (c) {
+      return c.toId !== nodeId ||
+        selectedIds.indexOf(c.fromId) !== -1;
+    });
+
     selectedIds.forEach(function (parentId) {
-      connections.push({ fromId: parentId, toId: nodeId });
+      var exists = connections.some(function (c) {
+        return c.fromId === parentId && c.toId === nodeId;
+      });
+
+      if (!exists) {
+        connections.push({
+          fromId: parentId,
+          toId: nodeId
+        });
+      }
     });
 
     // Keep the original main parent when still selected.
@@ -3491,12 +3717,22 @@ function getPortableProjectData() {
       };
     }),
 
+    
     connections: connections.map(function (c) {
-      return {
+      var saved = {
         fromId: (c.fromId || "").toString(),
         toId: (c.toId || "").toString()
       };
+
+      var style = normaliseConnectionOverride(c.style);
+
+      if (style) {
+        saved.style = style;
+      }
+
+      return saved;
     }),
+
 
     colorOptions: colorOptions.map(function (c) {
       return {
@@ -3601,9 +3837,10 @@ diagramAppearance.connectionStyle =
     connections = Array.isArray(project.connections)
       ? project.connections
           .map(function (c) {
-            return {
+                        return {
               fromId: (c.fromId || "").toString(),
-              toId: (c.toId || "").toString()
+              toId: (c.toId || "").toString(),
+              style: normaliseConnectionOverride(c.style)
             };
           })
           .filter(function (c) {
@@ -3860,14 +4097,24 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
         .querySelectorAll(
           "#nodeContextMenu, .node-context-submenu, " +
 "#quickColourDialog, .diagram-measure-context-menu, " +
-".diagram-quick-add-measure"
+".diagram-quick-add-measure, .diagram-connection-hit"
         )
+        
         .forEach(function (element) {
           element.remove();
         });
 
+      htmlClone.querySelectorAll(
+        ".diagram-connection-visible"
+      ).forEach(function (element) {
+        element.setAttribute("stroke", "#666");
+        element.setAttribute("stroke-width", "2.5");
+        element.removeAttribute("data-selected");
+      });
+
       /*
         Ensure the Help window is closed in the saved copy.
+
       */
       var helpOverlay =
         htmlClone.querySelector("#helpOverlay");
@@ -4030,7 +4277,21 @@ connection_style: normaliseConnectionStyle(
 	title_secondary: columnTitles.secondary,
 	title_change: columnTitles.change,
 	palette_json: JSON.stringify(colorOptions || []),
-        measures_json: JSON.stringify(n.measures || [])
+
+        measures_json: JSON.stringify(n.measures || []),
+
+        connection_styles_json: JSON.stringify(
+          connections.filter(function (c) {
+            return c.toId === n.id &&
+              normaliseConnectionOverride(c.style);
+          }).map(function (c) {
+            return {
+              fromId: c.fromId,
+              style: normaliseConnectionOverride(c.style)
+            };
+          })
+        )
+
 
     };
   });
@@ -4063,6 +4324,7 @@ function uploadCsv(file) {
       var rows = results.data || [];
       var imported = [];
       var extraConnectionsRaw = []; // { childId, parents[] }
+      var connectionStylesRaw = [];
       var appearanceFromCsv = null;
       var titlesFromCsv = null;
       var paletteFromCsv = null;
@@ -4101,10 +4363,34 @@ function uploadCsv(file) {
           parentId: parentId,
           color: color,
           autoSize: ((row.auto_size || "").toString().trim() === "1"),
+
           measures: measures
         });
 
-        // Parse extra parents into an array of IDs
+        var stylesJson = (
+          row.connection_styles_json || ""
+        ).toString().trim();
+
+        if (stylesJson) {
+          try {
+            var parsedStyles = JSON.parse(stylesJson);
+
+            if (Array.isArray(parsedStyles)) {
+              connectionStylesRaw.push({
+                childId: id,
+                entries: parsedStyles
+              });
+            }
+          } catch (error) {
+            console.warn(
+              "Invalid connection_styles_json on CSV row " +
+              (index + 1),
+              error
+            );
+          }
+        }
+
+        // Parse extra parentsinto an array of IDs
         if (extraParentsField) {
           var parents = extraParentsField
             .split(/[;,]/)
@@ -4213,7 +4499,32 @@ connectionStyle: normaliseConnectionStyle(
         });
       });
 
+
+// Restore optional per-connection styles after
+// all connections have been rebuilt.
+
+connectionStylesRaw.forEach(function (entry) {
+  entry.entries.forEach(function (item) {
+    if (!item || typeof item !== "object") return;
+
+    var fromId = (item.fromId || "").toString();
+    var style = normaliseConnectionOverride(item.style);
+
+    if (!fromId || !style) return;
+
+    var link = connections.find(function (c) {
+      return c.fromId === fromId &&
+        c.toId === entry.childId;
+    });
+
+    if (link) {
+      link.style = style;
+    }
+  });
+});
+
 // Restore the CSV style; use Bézier for older files.
+
 diagramAppearance.connectionStyle =
   normaliseConnectionStyle(
     appearanceFromCsv && appearanceFromCsv.connectionStyle
@@ -4298,8 +4609,25 @@ function withSvgImageOverlay(runCapture) {
     return runCapture();
   }
 
+
   var svgClone = svg.cloneNode(true);
+
+  svgClone.querySelectorAll(
+    ".diagram-connection-hit"
+  ).forEach(function (el) {
+    el.remove();
+  });
+
+  svgClone.querySelectorAll(
+    ".diagram-connection-visible"
+  ).forEach(function (el) {
+    el.setAttribute("stroke", "#666");
+    el.setAttribute("stroke-width", "2.5");
+    el.removeAttribute("data-selected");
+  });
+
   var svgString = serializer.serializeToString(svgClone);
+
   var dataUrl =
     "data:image/svg+xml;charset=utf-8," +
     encodeURIComponent(svgString);
@@ -5331,6 +5659,75 @@ if (colorValueInput) {
   if (applyAppearanceBtn) {
     applyAppearanceBtn.addEventListener("click", applyDiagramAppearanceFromInputs);
   }
+
+
+
+/* B3.3 — Individual connection formatting controls */
+
+var connectionFormatSelect =
+  document.getElementById("connectionFormatSelect");
+
+var connectionFormatClear =
+  document.getElementById("connectionFormatClear");
+
+if (connectionFormatSelect) {
+  connectionFormatSelect.addEventListener("change", function () {
+    if (!selectedDiagramConnection) return;
+
+    var conn = findDiagramConnection(
+      selectedDiagramConnection.fromId,
+      selectedDiagramConnection.toId
+    );
+
+    if (!conn) return;
+
+    var style = connectionFormatSelect.value === "default"
+      ? ""
+      : normaliseConnectionOverride(connectionFormatSelect.value);
+
+    if (style) {
+      conn.style = style;
+    } else {
+      delete conn.style;
+    }
+
+    // One history entry for this formatting change.
+    recordDiagramHistory();
+
+    var canvas = document.getElementById("diagramCanvas");
+    var svg = document.getElementById("diagramConnections");
+
+    if (canvas && svg) drawConnections(canvas, svg);
+    updateDiagramConnectionBar();
+  });
+}
+
+if (connectionFormatClear) {
+  connectionFormatClear.addEventListener(
+    "click", clearDiagramConnectionSelection
+  );
+}
+
+document.addEventListener("click", function (e) {
+  if (activeDiagramTextEdit) return;
+
+  if (e.target.closest(
+    "#connectionFormatBar, .diagram-connection-hit"
+  )) return;
+
+  clearDiagramConnectionSelection();
+});
+
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Escape" || activeDiagramTextEdit) return;
+
+  if (document.querySelector(
+    "dialog[open], .diagram-measure-editor-overlay"
+  )) return;
+
+  clearDiagramConnectionSelection();
+});
+
 
 
 /* B2.5: Live connection style preview */

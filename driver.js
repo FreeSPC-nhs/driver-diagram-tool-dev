@@ -1521,44 +1521,7 @@ function estimateMeasuresHeightPx(measures, fontSizePx) {
 }
 
 
-/* B2.3 — Position floating Add measure controls */
-
-function positionQuickMeasureButtons() {
-  document.querySelectorAll(".diagram-column-stack")
-    .forEach(function (stack) {
-
-      var items = Array.from(
-        stack.querySelectorAll(".diagram-item")
-      );
-
-      // Use visual position, not the order in the array.
-      items.sort(function (a, b) {
-        return a.offsetTop - b.offsetTop;
-      });
-
-      items.forEach(function (item, index) {
-        var next = items[index + 1];
-
-        var itemBottom =
-          item.offsetTop + item.offsetHeight;
-
-        var available = next
-          ? next.offsetTop - itemBottom
-          : stack.clientHeight - itemBottom;
-
-        // Use a compact position if the next item
-        // is too close for the full button.
-        item.classList.toggle(
-          "diagram-quick-add-tight",
-          available < 36
-        );
-      });
-    });
-}
-
-
-function renderDiagram() {
-  var canvas = document.getElementById("diagramCanvas");
+function renderDiagram() {  var canvas = document.getElementById("diagramCanvas");
   var columnsContainer = document.getElementById("diagramColumns");
 
   var svg = document.getElementById("diagramConnections");
@@ -1594,10 +1557,8 @@ function renderDiagram() {
     });
   });
 
-// --- NEW: compute a tree-style layout so branches stay aligned ---
-var boxH = (diagramAppearance && diagramAppearance.boxHeight) ? diagramAppearance.boxHeight : 32;
-var gap = (diagramAppearance && diagramAppearance.verticalGap != null) ? diagramAppearance.verticalGap : 8;
 
+// Calculate layout using the current appearance settings.
 var boxH = diagramAppearance && diagramAppearance.boxHeight ? diagramAppearance.boxHeight : 32;
 var gap = diagramAppearance && diagramAppearance.verticalGap != null ? diagramAppearance.verticalGap : 8;
 var fs  = diagramAppearance && diagramAppearance.fontSize ? diagramAppearance.fontSize : 13;
@@ -2282,10 +2243,9 @@ stack.appendChild(item);
 
   // Draw connecting lines after layout has happened
 if (!window.requestAnimationFrame) {
-  positionQuickMeasureButtons();
   drawConnections(canvas, svg);
-} else {
-  window.requestAnimationFrame(function () {
+} else {  
+window.requestAnimationFrame(function () {
     // Measure actual auto-sized node heights and re-layout once if needed
     if (!suppressAutosizeRelayout) {
       var changed = false;
@@ -2335,12 +2295,8 @@ if (!window.requestAnimationFrame) {
       }
     }
 
-    // Position the floating controls after layout stabilises.
-positionQuickMeasureButtons();
-
-// If no re-layout needed, just draw the connections.
-drawConnections(canvas, svg);
-  });
+    // If no re-layout is needed, draw the connections.
+    drawConnections(canvas, svg);  });
 }
 }
 

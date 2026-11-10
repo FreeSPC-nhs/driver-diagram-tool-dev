@@ -4551,7 +4551,8 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
         .querySelectorAll(
           "#nodeContextMenu, .node-context-submenu, " +
 "#quickColourDialog, .diagram-measure-context-menu, " +
-".diagram-quick-add-measure, .diagram-connection-hit"
+".diagram-quick-add-measure, .diagram-connection-hit, " +
+".zoom-redraw-notice"
         )
         
         .forEach(function (element) {
@@ -5848,7 +5849,133 @@ function closeNodeContextMenu() {
 
 /* ---------- Init ---------- */
 
+
 document.addEventListener("DOMContentLoaded", function () {
+
+/* B4.1b.1 — Refresh lines after browser zoom or resizing. */
+
+var zoomRedrawNotice = document.createElement("div");
+zoomRedrawNotice.className = "zoom-redraw-notice";
+zoomRedrawNotice.hidden = true;
+
+zoomRedrawNotice.innerHTML =
+  '<span>Connections refreshed after a screen or zoom change.</span>' +
+  '<button type="button" class="zoom-redraw-again">↻ Redraw lines</button>' +
+  '<button type="button" class="zoom-redraw-close" aria-label="Dismiss notification" title="Dismiss">×</button>';
+
+document.body.appendChild(zoomRedrawNotice);
+
+var zoomRedrawTimer = null;
+var zoomNoticeTimer = null;
+var zoomNoticeRequested = false;
+
+function redrawLinesForViewport() {
+  var canvas = document.getElementById("diagramCanvas");
+  var svg = document.getElementById("diagramConnections");
+
+  if (canvas && svg) {
+    drawConnections(canvas, svg);
+  }
+}
+
+function showZoomRedrawNotice() {
+  zoomRedrawNotice.hidden = false;
+
+  clearTimeout(zoomNoticeTimer);
+
+  zoomNoticeTimer = setTimeout(function () {
+    zoomRedrawNotice.hidden = true;
+  }, 10000);
+}
+
+function redrawLinesAfterLayout(onComplete) {
+  function redraw() {
+    redrawLinesForViewport();
+
+    if (onComplete) {
+      onComplete();
+    }
+  }
+
+  // Allow the browser to finish its layout calculations.
+  if (window.requestAnimationFrame) {
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(redraw);
+    });
+  } else {
+    redraw();
+  }
+}
+
+function scheduleViewportLineRedraw(showNotice) {
+  zoomNoticeRequested =
+    zoomNoticeRequested || !!showNotice;
+
+  clearTimeout(zoomRedrawTimer);
+
+  // Wait briefly for zooming or resizing to settle.
+  zoomRedrawTimer = setTimeout(function () {
+    var showAfterRedraw = zoomNoticeRequested;
+    zoomNoticeRequested = false;
+
+    redrawLinesAfterLayout(
+      showAfterRedraw ? showZoomRedrawNotice : null
+    );
+  }, 180);
+}
+
+// Standard browser zoom and window resizing.
+window.addEventListener("resize", function () {
+  scheduleViewportLineRedraw(true);
+});
+
+// Pinch zoom and visual viewport changes.
+if (window.visualViewport) {
+  window.visualViewport.addEventListener(
+    "resize",
+    function () {
+      scheduleViewportLineRedraw(true);
+    }
+  );
+}
+
+// Also respond when the diagram itself changes size.
+if (window.ResizeObserver) {
+  var zoomLineObserver = new window.ResizeObserver(
+    function () {
+      scheduleViewportLineRedraw(false);
+    }
+  );
+
+  var diagramToObserve =
+    document.getElementById("diagramCanvas");
+
+  if (diagramToObserve) {
+    zoomLineObserver.observe(diagramToObserve);
+  }
+}
+
+// Don't let notification clicks select/deselect elements.
+zoomRedrawNotice.addEventListener("click", function (e) {
+  e.stopPropagation();
+});
+
+// Manual redraw fallback.
+zoomRedrawNotice.querySelector(".zoom-redraw-again")
+  .addEventListener("click", function () {
+    clearTimeout(zoomRedrawTimer);
+    zoomNoticeRequested = false;
+
+    redrawLinesAfterLayout(showZoomRedrawNotice);
+  });
+
+// Dismiss notification.
+zoomRedrawNotice.querySelector(".zoom-redraw-close")
+  .addEventListener("click", function () {
+    zoomRedrawNotice.hidden = true;
+    clearTimeout(zoomNoticeTimer);
+  });
+
   console.log("Driver Diagram Tool loaded with header controls and export.");
 
   var addBtn = document.getElementById("addNodeBtn");

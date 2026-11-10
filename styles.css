@@ -1382,3 +1382,68 @@ dialog.quick-colour-dialog::backdrop {
 }
 
 
+/* B4.1b.1 — Zoom and resize connection refresh notification */
+
+.zoom-redraw-notice {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 15000;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+
+  box-sizing: border-box;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px;
+  padding-right: 32px;
+
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #b8cce3;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+
+  font-size: 13px;
+}
+
+.zoom-redraw-notice[hidden] {
+  display: none !important;
+}
+
+.zoom-redraw-notice span {
+  flex: 1 1 100%;
+  line-height: 1.4;
+}
+
+.zoom-redraw-notice .zoom-redraw-again {
+  background: #005eb8;
+  color: #ffffff;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
+.zoom-redraw-notice .zoom-redraw-close {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+
+  padding: 3px 8px;
+  background: transparent;
+  color: #475569;
+  font-size: 19px;
+}
+
+.zoom-redraw-notice .zoom-redraw-close:hover {
+  background: #edf2f7;
+}
+
+.zoom-redraw-notice button:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+

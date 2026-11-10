@@ -1264,133 +1264,215 @@ function renderLegend() {
 
 /* ---------- Diagram rendering (boxes + connecting lines) ---------- */
 
-function computeTreeLayout(byLevel, boxH, gap, heightById) {
-  var aimNodes = byLevel.aim || [];
-  var primaryNodes = byLevel.primary || [];
-  var secondaryNodes = byLevel.secondary || [];
-  var changeNodes = byLevel.change || [];
 
-  // Build children maps in the CURRENT order of arrays (important)
-  var secondariesByPrimary = {};
-  secondaryNodes.forEach(function (s) {
-    var pid = s.parentId || "";
-    if (!secondariesByPrimary[pid]) secondariesByPrimary[pid] = [];
-    secondariesByPrimary[pid].push(s);
+/* B3.2 — Align coloured boxes by their vertical centres.
+   Reserve the full item height, including measures. */
+
+function computeTreeLayout(byLevel, boxH, gap, heightById, boxHeightById) {
+  var aims = byLevel.aim || [];
+  var primaries = byLevel.primary || [];
+  var secondaries = byLevel.secondary || [];
+  var changes = byLevel.change || [];
+
+  var secondariesByPrimary = Object.create(null);
+  var changesBySecondary = Object.create(null);
+
+  secondaries.forEach(function (n) {
+    var key = n.parentId || "";
+    (secondariesByPrimary[key] ||
+      (secondariesByPrimary[key] = [])).push(n);
   });
 
-  var changesBySecondary = {};
-  changeNodes.forEach(function (c) {
-    var sid = c.parentId || "";
-    if (!changesBySecondary[sid]) changesBySecondary[sid] = [];
-    changesBySecondary[sid].push(c);
+  changes.forEach(function (n) {
+    var key = n.parentId || "";
+    (changesBySecondary[key] ||
+      (changesBySecondary[key] = [])).push(n);
   });
 
-function nodeH(id) {
-  return (heightById && heightById[id]) ? heightById[id] : boxH;
-}
-  // Height required for a secondary branch (secondary + its changes)
-  function secondaryBranchHeight(secId) {
-    var kids = changesBySecondary[secId] || [];
-    var secBoxH = nodeH(secId);
-if (kids.length === 0) return secBoxH;
-
-var sum = 0;
-kids.forEach(function (k, i) {
-  sum += nodeH(k.id);
-  if (i < kids.length - 1) sum += gap;
-});
-return Math.max(secBoxH, sum);
+  function itemH(id) {
+    var h = Number(heightById && heightById[id]);
+    return h > 0 ? Math.max(boxH, h) : boxH;
   }
 
-  // Height required for a primary branch (primary + all its secondary branches)
-  function primaryBranchHeight(primaryId) {
-    var secs = secondariesByPrimary[primaryId] || [];
-    var pBoxH = nodeH(primaryId);
-    if (secs.length === 0) return pBoxH;
-
-    var sum = 0;
-    secs.forEach(function (sec, i) {
-      sum += secondaryBranchHeight(sec.id);
-      if (i < secs.length - 1) sum += gap; // gap between secondary groups
-    });
-
-    return Math.max(pBoxH, sum);
+  function colourH(id) {
+    var h = Number(boxHeightById && boxHeightById[id]);
+    return h > 0
+      ? Math.min(itemH(id), h)
+      : Math.min(itemH(id), boxH);
   }
 
-  // Compute overall diagram height by stacking primary branches
-  var totalHeight = 0;
-  if (primaryNodes.length === 0) {
-    totalHeight = boxH;
-  } else {
-    primaryNodes.forEach(function (p, i) {
-      totalHeight += primaryBranchHeight(p.id);
-      if (i < primaryNodes.length - 1) totalHeight += gap; // gap between primary groups
+  function shiftPositions(positions, distance) {
+    Object.keys(positions).forEach(function (id) {
+      positions[id] += distance;
     });
   }
 
-  // Positions (top offsets) per node
-  var topById = {};
+  // Lay out a secondary driver and its change ideas.
+  function secondaryBranch(sec) {
+    var children = changesBySecondary[sec.id] || [];
+    var positions = Object.create(null);
+    var y = 0;
+    var firstCentre = null;
+    var lastCentre = null;
 
-  // Place Aim in the middle of the total height (if it exists)
-  if (aimNodes.length) {
-    topById[aimNodes[0].id] = Math.max(0, (totalHeight - nodeH(aimNodes[0].id)) / 2);
+    children.forEach(function (child, index) {
+      positions[child.id] = y;
+
+      var centre = y + colourH(child.id) / 2;
+      if (index === 0) firstCentre = centre;
+      lastCentre = centre;
+
+      y += itemH(child.id);
+      if (index < children.length - 1) y += gap;
+    });
+
+    var targetCentre = children.length
+      ? (firstCentre + lastCentre) / 2
+      : colourH(sec.id) / 2;
+
+    var secTop = targetCentre - colourH(sec.id) / 2;
+
+    // Keep the whole branch within its allocated area.
+    if (secTop < 0) {
+      shiftPositions(positions, -secTop);
+      y -= secTop;
+      secTop = 0;
+    }
+
+    positions[sec.id] = secTop;
+
+    return {
+      positions: positions,
+      centre: secTop + colourH(sec.id) / 2,
+      height: Math.max(secTop + itemH(sec.id), y)
+    };
   }
 
-  // Lay out primaries, and within each primary lay out its secondaries and changes
-  var cursorY = 0;
+  // Lay out a primary driver and its secondary branches.
+  function primaryBranch(primary) {
+    var children = secondariesByPrimary[primary.id] || [];
+    var positions = Object.create(null);
+    var y = 0;
+    var firstCentre = null;
+    var lastCentre = null;
 
-  primaryNodes.forEach(function (p, pIndex) {
-    var pHeight = primaryBranchHeight(p.id);
+    children.forEach(function (sec, index) {
+      var branch = secondaryBranch(sec);
 
-    // Primary box centred within its branch block
-    topById[p.id] = cursorY + (pHeight - nodeH(p.id)) / 2;
-
-    // Secondary blocks stacked within this primary block
-    var secCursorY = cursorY;
-    var secs = secondariesByPrimary[p.id] || [];
-
-    secs.forEach(function (sec, sIndex) {
-      var secH = secondaryBranchHeight(sec.id);
-
-      // Secondary box centred within its own block
-      topById[sec.id] = secCursorY + (secH - nodeH(sec.id)) / 2;
-
-      // Change ideas stacked within the secondary block, starting at the top of the block
-      var changes = changesBySecondary[sec.id] || [];
-      var chCursorY = secCursorY;
-      changes.forEach(function (ch, chIndex) {
-        topById[ch.id] = chCursorY;
-        chCursorY += nodeH(ch.id) + gap;
+      Object.keys(branch.positions).forEach(function (id) {
+        positions[id] = y + branch.positions[id];
       });
 
-      secCursorY += secH;
-      if (sIndex < secs.length - 1) secCursorY += gap;
+      var centre = y + branch.centre;
+      if (index === 0) firstCentre = centre;
+      lastCentre = centre;
+
+      y += branch.height;
+      if (index < children.length - 1) y += gap;
     });
 
-    cursorY += pHeight;
-    if (pIndex < primaryNodes.length - 1) cursorY += gap;
-  });
+    var targetCentre = children.length
+      ? (firstCentre + lastCentre) / 2
+      : colourH(primary.id) / 2;
 
-  // Any unparented secondaries/changes (rare) — just place them at the bottom
-  // so they remain visible rather than overlapping at 0.
-  var fallbackY = totalHeight + gap;
-  secondaryNodes.forEach(function (s) {
-    if (topById[s.id] == null) {
-      topById[s.id] = fallbackY;
-      fallbackY += boxH + gap;
+    var primaryTop =
+      targetCentre - colourH(primary.id) / 2;
+
+    if (primaryTop < 0) {
+      shiftPositions(positions, -primaryTop);
+      y -= primaryTop;
+      primaryTop = 0;
     }
+
+    positions[primary.id] = primaryTop;
+
+    return {
+      positions: positions,
+      centre: primaryTop + colourH(primary.id) / 2,
+      height: Math.max(primaryTop + itemH(primary.id), y)
+    };
+  }
+
+  // Stack the primary branches.
+  var topById = Object.create(null);
+  var y = 0;
+  var firstPrimaryCentre = null;
+  var lastPrimaryCentre = null;
+
+  primaries.forEach(function (primary, index) {
+    var branch = primaryBranch(primary);
+
+    Object.keys(branch.positions).forEach(function (id) {
+      topById[id] = y + branch.positions[id];
+    });
+
+    var centre = y + branch.centre;
+    if (index === 0) firstPrimaryCentre = centre;
+    lastPrimaryCentre = centre;
+
+    y += branch.height;
+    if (index < primaries.length - 1) y += gap;
   });
-  changeNodes.forEach(function (c) {
-    if (topById[c.id] == null) {
-      topById[c.id] = fallbackY;
-      fallbackY += boxH + gap;
+
+  var totalHeight = y;
+
+  // Centre the aim against the primary driver group.
+  if (aims.length) {
+    var aim = aims[0];
+
+    var targetAimCentre = primaries.length
+      ? (firstPrimaryCentre + lastPrimaryCentre) / 2
+      : colourH(aim.id) / 2;
+
+    var aimTop =
+      targetAimCentre - colourH(aim.id) / 2;
+
+    if (aimTop < 0) {
+      shiftPositions(topById, -aimTop);
+      totalHeight -= aimTop;
+      aimTop = 0;
     }
+
+    topById[aim.id] = aimTop;
+
+    totalHeight = Math.max(
+      totalHeight,
+      aimTop + itemH(aim.id)
+    );
+  }
+
+  // Preserve visibility of unparented elements.
+  var fallbackY = totalHeight;
+
+  secondaries.forEach(function (sec) {
+    if (topById[sec.id] != null) return;
+
+    if (fallbackY > 0) fallbackY += gap;
+
+    var branch = secondaryBranch(sec);
+
+    Object.keys(branch.positions).forEach(function (id) {
+      topById[id] = fallbackY + branch.positions[id];
+    });
+
+    fallbackY += branch.height;
   });
 
-  // If we used fallback rows, extend total height
-  totalHeight = Math.max(totalHeight, fallbackY);
+  changes.forEach(function (change) {
+    if (topById[change.id] != null) return;
 
-  return { topById: topById, totalHeight: totalHeight };
+    if (fallbackY > 0) fallbackY += gap;
+
+    topById[change.id] = fallbackY;
+    fallbackY += itemH(change.id);
+  });
+
+  totalHeight = Math.max(totalHeight, fallbackY, boxH);
+
+  return {
+    topById: topById,
+    totalHeight: totalHeight
+  };
 }
 
 function estimateAutoHeightPx(text, fontSizePx, boxWidthPx, baseBoxHeightPx) {
@@ -1547,7 +1629,46 @@ if (activeDiagramTextEdit &&
   heightById[n.id] = boxHeightForThisNode + measuresHeightForThisNode;
 });
 
-var layout = computeTreeLayout(byLevel, boxH, gap, heightById);
+
+/* B3.2 — Track the coloured box height separately
+   from the full element height (box plus measures). */
+
+var boxHeightById = {};
+
+nodes.forEach(function (n) {
+  // Reserve space for the temporary inline text editor.
+  if (activeDiagramTextEdit &&
+      activeDiagramTextEdit.id === n.id) {
+    boxHeightById[n.id] = Math.max(boxH, 96);
+    return;
+  }
+
+  // Prefer heights measured from the rendered diagram.
+  if (measuredBoxHeightsById[n.id] > 0) {
+    boxHeightById[n.id] = measuredBoxHeightsById[n.id];
+    return;
+  }
+
+  // Otherwise estimate the coloured box height.
+  boxHeightById[n.id] = n.autoSize
+    ? estimateAutoHeightPx(
+        n.text || "",
+        fs,
+        320,
+        boxH
+      )
+    : boxH;
+});
+
+// Use both complete item heights and coloured-box heights.
+var layout = computeTreeLayout(
+  byLevel,
+  boxH,
+  gap,
+  heightById,
+  boxHeightById
+);
+
 
 // Make sure the canvas is tall enough to contain absolutely-positioned nodes
 canvas.style.minHeight = Math.ceil(layout.totalHeight + gap * 2) + "px";

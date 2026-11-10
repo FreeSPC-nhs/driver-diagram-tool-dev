@@ -949,7 +949,7 @@ dialog.quick-colour-dialog::backdrop {
 
 .diagram-quick-add-measure {
   position: absolute;
-  top: calc(100% + 1px);
+  top: 100%;
   right: 2px;
   z-index: 10;
 
@@ -996,33 +996,6 @@ dialog.quick-colour-dialog::backdrop {
   z-index: 5;
 }
 
-/* Compact fallback when vertical space is limited */
-
-.diagram-item.diagram-quick-add-tight
-.diagram-quick-add-measure {
-  top: auto;
-  bottom: 0;
-  right: -7px;
-
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-radius: 50%;
-}
-
-.diagram-item.diagram-quick-add-tight
-.quick-add-measure-label {
-  display: none;
-}
-
-/* For boxes with no measures, avoid the child + control */
-
-.diagram-item.diagram-quick-add-tight.diagram-no-measures
-.diagram-quick-add-measure {
-  top: 3px;
-  bottom: auto;
-  right: 25px;
-}
 
 /* Hide during inline text editing */
 
@@ -1047,3 +1020,17 @@ dialog.quick-colour-dialog::backdrop {
   display: none !important;
 }
 
+
+/* B2.3a — Distinct measure icon */
+
+.quick-add-measure-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.diagram-quick-add-measure {
+  border-radius: 16px;
+  white-space: nowrap;
+}

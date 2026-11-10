@@ -1983,15 +1983,25 @@ quickAddMeasure.setAttribute(
   "Add measure to " + node.text
 );
 
-var plus = document.createElement("span");
-plus.setAttribute("aria-hidden", "true");
-plus.textContent = "+";
+
+var measureIcon = document.createElement("span");
+measureIcon.className = "quick-add-measure-icon";
+measureIcon.setAttribute("aria-hidden", "true");
+
+measureIcon.innerHTML =
+  '<svg viewBox="0 0 20 20" width="15" height="15" ' +
+  'fill="none" stroke="currentColor" stroke-width="1.8" ' +
+  'stroke-linecap="round" stroke-linejoin="round" ' +
+  'focusable="false">' +
+  '<path d="M3 16V10M8 16V5M13 16V8M18 16V3"/>' +
+  '<path d="M2 17h17"/>' +
+  '</svg>';
 
 var caption = document.createElement("span");
 caption.className = "quick-add-measure-label";
 caption.textContent = "Add measure";
 
-quickAddMeasure.appendChild(plus);
+quickAddMeasure.appendChild(measureIcon);
 quickAddMeasure.appendChild(caption);
 
 quickAddMeasure.addEventListener("click", function (e) {

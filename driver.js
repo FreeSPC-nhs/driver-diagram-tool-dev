@@ -133,6 +133,7 @@ function addMeasureToNode(nodeId) {
 
   // ---- Build a small modal dialog ----
   var overlay = document.createElement("div");
+  overlay.className = "diagram-measure-editor-overlay";
   overlay.style.position = "fixed";
   overlay.style.left = "0";
   overlay.style.top = "0";
@@ -1377,6 +1378,43 @@ function estimateMeasuresHeightPx(measures, fontSizePx) {
   return padTop + measures.length * lineH + padBottom;
 }
 
+
+/* B2.3 — Position floating Add measure controls */
+
+function positionQuickMeasureButtons() {
+  document.querySelectorAll(".diagram-column-stack")
+    .forEach(function (stack) {
+
+      var items = Array.from(
+        stack.querySelectorAll(".diagram-item")
+      );
+
+      // Use visual position, not the order in the array.
+      items.sort(function (a, b) {
+        return a.offsetTop - b.offsetTop;
+      });
+
+      items.forEach(function (item, index) {
+        var next = items[index + 1];
+
+        var itemBottom =
+          item.offsetTop + item.offsetHeight;
+
+        var available = next
+          ? next.offsetTop - itemBottom
+          : stack.clientHeight - itemBottom;
+
+        // Use a compact position if the next item
+        // is too close for the full button.
+        item.classList.toggle(
+          "diagram-quick-add-tight",
+          available < 36
+        );
+      });
+    });
+}
+
+
 function renderDiagram() {
   var canvas = document.getElementById("diagramCanvas");
   var columnsContainer = document.getElementById("diagramColumns");
@@ -1927,6 +1965,56 @@ node.measures.forEach(function (m, measureIndex) {
   item.appendChild(measuresWrap);
 }
 
+
+/* B2.3 — Contextual Add measure button */
+
+item.classList.toggle(
+  "diagram-no-measures",
+  !node.measures || node.measures.length === 0
+);
+
+var quickAddMeasure = document.createElement("button");
+quickAddMeasure.type = "button";
+quickAddMeasure.className = "diagram-quick-add-measure";
+quickAddMeasure.title = "Add measure";
+
+quickAddMeasure.setAttribute(
+  "aria-label",
+  "Add measure to " + node.text
+);
+
+var plus = document.createElement("span");
+plus.setAttribute("aria-hidden", "true");
+plus.textContent = "+";
+
+var caption = document.createElement("span");
+caption.className = "quick-add-measure-label";
+caption.textContent = "Add measure";
+
+quickAddMeasure.appendChild(plus);
+quickAddMeasure.appendChild(caption);
+
+quickAddMeasure.addEventListener("click", function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  // Never interrupt unfinished editing.
+  if (
+    activeDiagramTextEdit ||
+    document.querySelector(
+      "dialog[open], .diagram-measure-editor-overlay"
+    )
+  ) {
+    return;
+  }
+
+  // Reuse the existing, tested Add measure editor.
+  addMeasureToNode(node.id);
+});
+
+item.appendChild(quickAddMeasure);
+
+
 // Finally add the wrapper to the stack
 stack.appendChild(item);
     });
@@ -1936,6 +2024,7 @@ stack.appendChild(item);
 
   // Draw connecting lines after layout has happened
 if (!window.requestAnimationFrame) {
+  positionQuickMeasureButtons();
   drawConnections(canvas, svg);
 } else {
   window.requestAnimationFrame(function () {
@@ -1988,8 +2077,11 @@ if (!window.requestAnimationFrame) {
       }
     }
 
-    // If no re-layout needed, just draw the connections
-    drawConnections(canvas, svg);
+    // Position the floating controls after layout stabilises.
+positionQuickMeasureButtons();
+
+// If no re-layout needed, just draw the connections.
+drawConnections(canvas, svg);
   });
 }
 }
@@ -3397,7 +3489,8 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
       htmlClone
         .querySelectorAll(
           "#nodeContextMenu, .node-context-submenu, " +
-"#quickColourDialog, .diagram-measure-context-menu"
+"#quickColourDialog, .diagram-measure-context-menu, " +
+".diagram-quick-add-measure"
         )
         .forEach(function (element) {
           element.remove();

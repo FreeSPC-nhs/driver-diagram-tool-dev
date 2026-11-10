@@ -942,3 +942,108 @@ dialog.quick-colour-dialog::backdrop {
   outline: none !important;
 }
 
+
+/* ==========================================
+   B2.3 — Contextual Add measure controls
+   ========================================== */
+
+.diagram-quick-add-measure {
+  position: absolute;
+  top: calc(100% + 1px);
+  right: 2px;
+  z-index: 10;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 4px 9px;
+
+  border: 1px solid #005eb8;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #005eb8;
+
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+/* Reveal on hover, keyboard focus or node selection */
+
+.diagram-item:hover .diagram-quick-add-measure,
+.diagram-item:focus-within .diagram-quick-add-measure,
+.diagram-item:has(.diagram-node.diagram-selected)
+  .diagram-quick-add-measure {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Keep the active item's button above nearby elements */
+
+.diagram-item:hover,
+.diagram-item:focus-within {
+  z-index: 5;
+}
+
+/* Compact fallback when vertical space is limited */
+
+.diagram-item.diagram-quick-add-tight
+.diagram-quick-add-measure {
+  top: auto;
+  bottom: 0;
+  right: -7px;
+
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.diagram-item.diagram-quick-add-tight
+.quick-add-measure-label {
+  display: none;
+}
+
+/* For boxes with no measures, avoid the child + control */
+
+.diagram-item.diagram-quick-add-tight.diagram-no-measures
+.diagram-quick-add-measure {
+  top: 3px;
+  bottom: auto;
+  right: 25px;
+}
+
+/* Hide during inline text editing */
+
+.diagram-item:has(.diagram-text-editing)
+.diagram-quick-add-measure {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Keyboard accessibility */
+
+.diagram-quick-add-measure:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+/* Never include in PNG or PDF exports */
+
+.export-clean .diagram-quick-add-measure {
+  display: none !important;
+}
+

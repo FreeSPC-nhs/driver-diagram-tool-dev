@@ -20,8 +20,25 @@ var diagramAppearance = {
   verticalGap: 8,     // px between boxes
   fontSize: 13,       // px
   fontFamily: "",      // empty = inherit from page
-  fontBold: false
+  fontBold: false,
+  connectionStyle: "bezier"
 };
+
+
+/* B2.5: Supported connection styles */
+
+function normaliseConnectionStyle(value) {
+  if (
+    value === "straight" ||
+    value === "orthogonal" ||
+    value === "bezier"
+  ) {
+    return value;
+  }
+
+  // Compatibility with diagrams saved before B2.5.
+  return "bezier";
+}
 
 
 // View state
@@ -2164,23 +2181,39 @@ function drawConnections(canvas, svg) {
     var midX = (x1 + x2) / 2;
 
     var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    var d =
-      "M " +
-      x1 +
-      " " +
-      y1 +
-      " C " +
-      midX +
-      " " +
-      y1 +
-      ", " +
-      midX +
-      " " +
-      y2 +
-      ", " +
-      x2 +
-      " " +
-      y2;
+    
+// B2.5: Draw the selected connection style.
+var connectionStyle = normaliseConnectionStyle(
+  diagramAppearance.connectionStyle
+);
+
+var d;
+
+if (connectionStyle === "straight") {
+
+  // Direct line between the two boxes.
+  d = "M " + x1 + " " + y1 +
+      " L " + x2 + " " + y2;
+
+} else if (connectionStyle === "orthogonal") {
+
+  // Horizontal, vertical, horizontal.
+  // The bends occur halfway between columns.
+  d = "M " + x1 + " " + y1 +
+      " H " + midX +
+      " V " + y2 +
+      " H " + x2;
+
+} else {
+
+  // Original smooth cubic Bézier connection.
+  d = "M " + x1 + " " + y1 +
+      " C " + midX + " " + y1 +
+      ", " + midX + " " + y2 +
+      ", " + x2 + " " + y2;
+
+}
+
 
     path.setAttribute("d", d);
     path.setAttribute("fill", "none");
@@ -2404,6 +2437,12 @@ function applyDiagramAppearanceFromInputs() {
   diagramAppearance.fontFamily = ff;
   diagramAppearance.fontBold = bold; 
 
+var lineInput = document.getElementById("connectionStyleInput");
+if (lineInput) {
+  diagramAppearance.connectionStyle =
+    normaliseConnectionStyle(lineInput.value);
+}
+
   updateAllViews();
 }
 
@@ -2421,6 +2460,12 @@ function setAppearanceInputsFromConfig() {
   fsInput.value = diagramAppearance.fontSize;
   ffInput.value = diagramAppearance.fontFamily || "";
   boldInput.checked = !!diagramAppearance.fontBold;
+var lineInput = document.getElementById("connectionStyleInput");
+if (lineInput) {
+  lineInput.value = normaliseConnectionStyle(
+    diagramAppearance.connectionStyle
+  );
+}
 }
 
 
@@ -3200,7 +3245,10 @@ function getPortableProjectData() {
       verticalGap: diagramAppearance.verticalGap,
       fontSize: diagramAppearance.fontSize,
       fontFamily: diagramAppearance.fontFamily || "",
-      fontBold: !!diagramAppearance.fontBold
+      fontBold: !!diagramAppearance.fontBold,
+connectionStyle: normaliseConnectionStyle(
+  diagramAppearance.connectionStyle
+)
     },
 
     legendVisible: legendVisible !== false
@@ -3248,6 +3296,16 @@ function loadEmbeddedProjectIfPresent() {
     ) {
       throw new Error("This is not a recognised portable driver diagram.");
     }
+
+
+// B2.5: Restore the saved connection style.
+// Older project files automatically use Bézier.
+diagramAppearance.connectionStyle =
+  normaliseConnectionStyle(
+    project.diagramAppearance &&
+    project.diagramAppearance.connectionStyle
+  );
+
 
     nodes = project.nodes.map(function (n) {
       return {
@@ -3692,6 +3750,9 @@ function downloadCsv() {
       font_size: diagramAppearance.fontSize,
       font_family: diagramAppearance.fontFamily || "",
       font_bold: diagramAppearance.fontBold ? "1" : "0",
+connection_style: normaliseConnectionStyle(
+  diagramAppearance.connectionStyle
+),
 	title_aim: columnTitles.aim,
 	title_primary: columnTitles.primary,
 	title_secondary: columnTitles.secondary,
@@ -3817,13 +3878,16 @@ function uploadCsv(file) {
           var ff = (row.font_family || "").toString();
           var fbRaw = (row.font_bold || "").toString().trim().toLowerCase();
           var fb = fbRaw === "1" || fbRaw === "true" || fbRaw === "yes";
+var connectionStyleFromCsv =
+  (row.connection_style || "").toString().trim();
 
           var hasAny =
             (row.box_height && !isNaN(bh)) ||
             (row.vertical_gap && !isNaN(vg)) ||
             (row.font_size && !isNaN(fs)) ||
             ff ||
-            fbRaw;
+fbRaw ||
+connectionStyleFromCsv;
 
           if (hasAny) {
             appearanceFromCsv = {
@@ -3831,7 +3895,10 @@ function uploadCsv(file) {
               verticalGap: isFinite(vg) && vg >= 0 ? vg : diagramAppearance.verticalGap,
               fontSize: isFinite(fs) && fs > 0 ? fs : diagramAppearance.fontSize,
               fontFamily: ff,
-              fontBold: fb
+              fontBold: fb,
+connectionStyle: normaliseConnectionStyle(
+  connectionStyleFromCsv
+)
             };
           }
         }
@@ -3873,6 +3940,12 @@ function uploadCsv(file) {
           }
         });
       });
+
+// Restore the CSV style; use Bézier for older files.
+diagramAppearance.connectionStyle =
+  normaliseConnectionStyle(
+    appearanceFromCsv && appearanceFromCsv.connectionStyle
+  );
 
       // Apply appearance
       if (appearanceFromCsv) {
@@ -4933,6 +5006,29 @@ if (colorValueInput) {
   if (applyAppearanceBtn) {
     applyAppearanceBtn.addEventListener("click", applyDiagramAppearanceFromInputs);
   }
+
+
+/* B2.5: Live connection style preview */
+
+var connectionStyleInput =
+  document.getElementById("connectionStyleInput");
+
+if (connectionStyleInput) {
+  connectionStyleInput.addEventListener("change", function () {
+
+    diagramAppearance.connectionStyle =
+      normaliseConnectionStyle(connectionStyleInput.value);
+
+    var canvas = document.getElementById("diagramCanvas");
+    var svg = document.getElementById("diagramConnections");
+
+    // Redraw lines without rebuilding the diagram boxes.
+    if (canvas && svg) {
+      drawConnections(canvas, svg);
+    }
+  });
+}
+
 
  // Help / info modal
   if (btnHelp) {

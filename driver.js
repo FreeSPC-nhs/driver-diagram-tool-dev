@@ -3131,6 +3131,51 @@ function downloadPortableHtml() {
       var htmlClone =
         document.documentElement.cloneNode(true);
 
+
+// B1.4: Embed the external CSS in saved HTML files.
+// This keeps saved diagrams visually self-contained.
+
+var liveStylesheet = document.querySelector(
+  'link[rel="stylesheet"][href="./styles.css"]'
+);
+
+var clonedStylesheet = htmlClone.querySelector(
+  'link[rel="stylesheet"][href="./styles.css"]'
+);
+
+if (!liveStylesheet ||
+    !liveStylesheet.sheet ||
+    !clonedStylesheet) {
+  throw new Error(
+    "Could not locate the loaded styles.css stylesheet."
+  );
+}
+
+var embeddedCss;
+
+try {
+  embeddedCss = Array.from(
+    liveStylesheet.sheet.cssRules
+  ).map(function (rule) {
+    return rule.cssText;
+  }).join("\n");
+} catch (error) {
+  throw new Error(
+    "Could not embed styles.css: " + error.message
+  );
+}
+
+if (!embeddedCss.trim()) {
+  throw new Error("styles.css contained no readable rules.");
+}
+
+var embeddedStyleElement = document.createElement("style");
+embeddedStyleElement.textContent = embeddedCss;
+
+// Replace the external reference with the actual CSS.
+clonedStylesheet.replaceWith(embeddedStyleElement);
+
+
       /*
         Remove temporary menus created while using the tool.
       */
@@ -3254,7 +3299,8 @@ function downloadPortableHtml() {
 
       alert(
         "The portable HTML file could not be created.\n\n" +
-        "The tool could not read driver.js. This can happen when the original tool is opened directly from a folder rather than through a web address or local web server.\n\n" +
+        "The application could not embed its JavaScript or stylesheet. " +
+	"Try saving from the hosted development website.\n\n" +
         "Technical detail: " +
         error.message
       );

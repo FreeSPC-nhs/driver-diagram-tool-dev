@@ -1547,8 +1547,13 @@ function positionQuickMeasureButtons() {
 function renderDiagram() {
   var canvas = document.getElementById("diagramCanvas");
   var columnsContainer = document.getElementById("diagramColumns");
+
   var svg = document.getElementById("diagramConnections");
   if (!canvas || !columnsContainer || !svg) return;
+
+  // B3.4c: Enable more forgiving drop targets.
+  installForgivingDiagramDropZones(canvas);
+
 
 // Prevent the browser context menu anywhere inside the diagram area
 [canvas, columnsContainer, svg].forEach(function (el) {
@@ -2838,7 +2843,176 @@ function reorderDiagramSibling(fromId, toId, placeAfter) {
   updateAllViews();
 }
 
+
+/* B3.4c — Accept drops in gaps, while keeping parent groups separate. */
+
+function installForgivingDiagramDropZones(canvas) {
+  if (canvas._forgivingDropsInstalled) return;
+  canvas._forgivingDropsInstalled = true;
+
+  function findDropPosition(event) {
+    var source = nodes.find(function (n) {
+      return n.id === diagramDraggingNodeId;
+    });
+    if (!source) return null;
+
+    var levelIndex = levelOrder.indexOf(source.level);
+    var columns = document.querySelectorAll(
+      "#diagramColumns .diagram-column"
+    );
+    var column = columns[levelIndex];
+    if (!column) return null;
+
+    // Accept the column plus a small margin on either side.
+    var area = column.getBoundingClientRect();
+
+    if (event.clientX < area.left - 16 ||
+        event.clientX > area.right + 16) {
+      return null;
+    }
+
+    var closest = null;
+    var smallestDistance = Infinity;
+
+    column.querySelectorAll(
+      ".diagram-column-stack > .diagram-item"
+    ).forEach(function (item) {
+      var id = item.getAttribute("data-id");
+
+      var candidate = nodes.find(function (n) {
+        return n.id === id;
+      });
+      if (!candidate) return;
+
+      var rect = item.getBoundingClientRect();
+
+      var distance = Math.max(
+        rect.top - event.clientY,
+        0,
+        event.clientY - rect.bottom
+      );
+
+      if (distance < smallestDistance) {
+        smallestDistance = distance;
+        closest = {
+          node: candidate,
+          item: item
+        };
+      }
+    });
+
+    // Never mix elements belonging to different parents.
+    if (!closest ||
+        closest.node.level !== source.level ||
+        (closest.node.parentId || "") !==
+        (source.parentId || "")) {
+      return null;
+    }
+
+    var box = closest.item.querySelector(".diagram-node");
+    if (!box) return null;
+
+    var boxRect = box.getBoundingClientRect();
+
+    return {
+      id: closest.node.id,
+      box: box,
+      after: event.clientY >=
+        boxRect.top + boxRect.height / 2
+    };
+  }
+
+  function clearDropHighlight() {
+    if (diagramDragTargetBox) {
+      diagramDragTargetBox.classList.remove(
+        "diagram-drop-before",
+        "diagram-drop-after"
+      );
+      diagramDragTargetBox = null;
+    }
+  }
+
+  function handleDragging(event) {
+    if (!diagramDraggingNodeId) return;
+
+    // Handle drag events before the older box-only handlers.
+    event.stopPropagation();
+
+    var target = findDropPosition(event);
+
+    if (!target) {
+      clearDropHighlight();
+      return;
+    }
+
+    // Tell the browser this is a valid drop location.
+    event.preventDefault();
+
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+
+    if (target.id === diagramDraggingNodeId) {
+      clearDropHighlight();
+      return;
+    }
+
+    if (diagramDragTargetBox !== target.box) {
+      clearDropHighlight();
+    }
+
+    diagramDragTargetBox = target.box;
+
+    target.box.classList.toggle(
+      "diagram-drop-before",
+      !target.after
+    );
+
+    target.box.classList.toggle(
+      "diagram-drop-after",
+      target.after
+    );
+  }
+
+  canvas.addEventListener(
+    "dragenter", handleDragging, true
+  );
+
+  canvas.addEventListener(
+    "dragover", handleDragging, true
+  );
+
+  canvas.addEventListener("drop", function (event) {
+    if (!diagramDraggingNodeId) return;
+
+    event.stopPropagation();
+
+    var target = findDropPosition(event);
+
+    if (!target) {
+      clearDropHighlight();
+      return;
+    }
+
+    event.preventDefault();
+
+    var fromId = diagramDraggingNodeId;
+    diagramDraggingNodeId = null;
+
+    clearDiagramDragMarker();
+
+    if (target.id !== fromId) {
+      reorderDiagramSibling(
+        fromId,
+        target.id,
+        target.after
+      );
+    }
+  }, true);
+}
+
 function enableDiagramNodeDrag(box, node) {
+
   if (node.level === "aim" ||
       getSiblingIdsInOrder(node).length < 2) {
     return;

@@ -1034,3 +1034,16 @@ dialog.quick-colour-dialog::backdrop {
   border-radius: 16px;
   white-space: nowrap;
 }
+
+
+/* B3.1 — Undo/Redo accessibility */
+
+.header-buttons button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.header-buttons button:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 3px;
+}

@@ -2469,8 +2469,159 @@ if (lineInput) {
 }
 
 
+/* B3.1 — In-memory diagram undo/redo */
+
+var diagramHistoryStates = [];
+var diagramHistoryIndex = -1;
+var diagramHistoryReady = false;
+var diagramHistoryRestoring = false;
+var DIAGRAM_HISTORY_LIMIT = 51; // Current state + up to 50 changes.
+
+function captureDiagramHistoryState() {
+  return JSON.stringify({
+    nodes: nodes,
+    nextId: nextId,
+    connections: connections,
+    colorOptions: colorOptions,
+    columnTitles: columnTitles,
+    diagramAppearance: diagramAppearance,
+    legendVisible: legendVisible
+  });
+}
+
+function refreshDiagramHistoryButtons() {
+  var undoBtn = document.getElementById("btnDiagramUndo");
+  var redoBtn = document.getElementById("btnDiagramRedo");
+
+  if (undoBtn) {
+    undoBtn.disabled =
+      !diagramHistoryReady || diagramHistoryIndex <= 0;
+  }
+
+  if (redoBtn) {
+    redoBtn.disabled =
+      !diagramHistoryReady ||
+      diagramHistoryIndex >= diagramHistoryStates.length - 1;
+  }
+}
+
+function initialiseDiagramHistory() {
+  diagramHistoryStates = [captureDiagramHistoryState()];
+  diagramHistoryIndex = 0;
+  diagramHistoryReady = true;
+  refreshDiagramHistoryButtons();
+}
+
+function recordDiagramHistory() {
+  if (!diagramHistoryReady || diagramHistoryRestoring) return;
+
+  var snapshot = captureDiagramHistoryState();
+
+  // Ignore redraws and actions that did not change the diagram.
+  if (snapshot === diagramHistoryStates[diagramHistoryIndex]) {
+    return;
+  }
+
+  // A new edit after Undo discards the old Redo branch.
+  diagramHistoryStates =
+    diagramHistoryStates.slice(0, diagramHistoryIndex + 1);
+
+  diagramHistoryStates.push(snapshot);
+
+  if (diagramHistoryStates.length > DIAGRAM_HISTORY_LIMIT) {
+    diagramHistoryStates.shift();
+  }
+
+  diagramHistoryIndex = diagramHistoryStates.length - 1;
+  refreshDiagramHistoryButtons();
+}
+
+function canRestoreDiagramHistory() {
+  // Never lose unfinished text or modal edits.
+  if (activeDiagramTextEdit) return false;
+
+  if (document.querySelector(
+    "dialog[open], .diagram-measure-editor-overlay"
+  )) return false;
+
+  if (document.querySelector("#helpOverlay.is-open")) {
+    return false;
+  }
+
+  if (editingColorValue && isColorEditorDirty()) {
+    return false;
+  }
+
+  return true;
+}
+
+function restoreDiagramHistory(index) {
+  if (!diagramHistoryReady ||
+      index < 0 ||
+      index >= diagramHistoryStates.length ||
+      !canRestoreDiagramHistory()) {
+    return;
+  }
+
+  diagramHistoryRestoring = true;
+
+  try {
+    var state = JSON.parse(diagramHistoryStates[index]);
+
+    nodes = state.nodes;
+    nextId = state.nextId;
+    connections = state.connections;
+    colorOptions = state.colorOptions;
+    columnTitles = state.columnTitles;
+    diagramAppearance = state.diagramAppearance;
+    legendVisible = state.legendVisible;
+
+    // Clear selections that may no longer be valid.
+    selectedDiagramNodeId = null;
+    selectedDiagramMeasure = null;
+    activeDiagramTextEdit = null;
+
+    closeNodeContextMenu();
+    closeMeasureContextMenu();
+
+    // Recalculate all dimensions after restoring.
+    measuredBoxHeightsById = {};
+    measuredItemHeightsById = {};
+    suppressAutosizeRelayout = false;
+
+    resetColorEditorForm();
+    setAppearanceInputsFromConfig();
+    updateAllViews();
+
+    diagramHistoryIndex = index;
+
+  } finally {
+    diagramHistoryRestoring = false;
+    refreshDiagramHistoryButtons();
+  }
+}
+
+function undoDiagramChange() {
+  if (diagramHistoryIndex > 0) {
+    restoreDiagramHistory(diagramHistoryIndex - 1);
+  }
+}
+
+function redoDiagramChange() {
+  if (diagramHistoryIndex < diagramHistoryStates.length - 1) {
+    restoreDiagramHistory(diagramHistoryIndex + 1);
+  }
+}
+
+
+
+
 function updateAllViews() {
+  // B3.1: Record changes, but ignore unchanged redraws.
+  recordDiagramHistory();
+
   refreshParentOptions();
+
   renderDiagram();
   refreshColorSelect();
   renderColorOptionsList();
@@ -4812,6 +4963,59 @@ document.addEventListener("DOMContentLoaded", function () {
   var btnExportPng = document.getElementById("btnExportPng");
   var btnExportPdf = document.getElementById("btnExportPdf");
   var applyAppearanceBtn = document.getElementById("applyAppearanceBtn");
+
+
+/* B3.1 — Undo/Redo controls */
+
+var undoDiagramBtn =
+  document.getElementById("btnDiagramUndo");
+
+var redoDiagramBtn =
+  document.getElementById("btnDiagramRedo");
+
+if (undoDiagramBtn) {
+  undoDiagramBtn.addEventListener(
+    "click",
+    undoDiagramChange
+  );
+}
+
+if (redoDiagramBtn) {
+  redoDiagramBtn.addEventListener(
+    "click",
+    redoDiagramChange
+  );
+}
+
+// Keyboard shortcuts.
+document.addEventListener("keydown", function (e) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) {
+    return;
+  }
+
+  // Leave native text-field undo/redo alone.
+  if (e.target && e.target.closest &&
+      e.target.closest(
+        'input, textarea, select, [contenteditable="true"]'
+      )) {
+    return;
+  }
+
+  var key = e.key.toLowerCase();
+
+  if (key === "z" && !e.shiftKey) {
+    e.preventDefault();
+    undoDiagramChange();
+  } else if (
+    (key === "z" && e.shiftKey) ||
+    key === "y"
+  ) {
+    e.preventDefault();
+    redoDiagramChange();
+  }
+});
+
+
   var btnHelp = document.getElementById("btnHelp");
   var helpOverlay = document.getElementById("helpOverlay");
   var helpCloseBtn = document.getElementById("helpCloseBtn");
@@ -5019,6 +5223,8 @@ if (connectionStyleInput) {
     diagramAppearance.connectionStyle =
       normaliseConnectionStyle(connectionStyleInput.value);
 
+recordDiagramHistory();
+
     var canvas = document.getElementById("diagramCanvas");
     var svg = document.getElementById("diagramConnections");
 
@@ -5062,6 +5268,7 @@ if (connectionStyleInput) {
     btnToggleLegend.addEventListener("click", function () {
       legendVisible = !legendVisible;
       updateLegendVisibility();
+      recordDiagramHistory();
     });
   }
 
@@ -5093,7 +5300,13 @@ if (loadedEmbeddedProject) {
   setAppearanceInputsFromConfig();
 }
 
+
 initialiseColorEditor();
 ensureNodeContextMenu();
 
+// B3.1: The initial diagram is our first history state.
+// This runs after normal or portable-HTML project loading.
+initialiseDiagramHistory();
+
 });
+

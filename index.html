@@ -275,25 +275,74 @@
 </div>
 
 
-<!-- B3.3: Individual connection formatting -->
+
+<!-- B3.3a: Floating visual connection-style menu -->
 <div id="connectionFormatBar" role="group"
-     aria-label="Selected connection" hidden>
+     aria-label="Connection style" hidden>
 
-  <strong id="connectionFormatLabel"></strong>
+  <div class="connection-popup-heading">
+    <strong>Connection style</strong>
 
-  <label for="connectionFormatSelect">Line style</label>
+    <button type="button"
+            id="connectionFormatClear"
+            aria-label="Deselect connection"
+            title="Close">×</button>
+  </div>
 
-  <select id="connectionFormatSelect">
+  <p id="connectionFormatLabel"></p>
+
+  <!-- Retained for the existing JavaScript change handler -->
+  <select id="connectionFormatSelect" hidden>
     <option value="default">Use diagram default</option>
     <option value="straight">Straight</option>
     <option value="orthogonal">Orthogonal</option>
     <option value="bezier">Bézier</option>
   </select>
 
-  <button type="button" id="connectionFormatClear"
-          class="secondary">
-    Deselect
-  </button>
+  <div class="connection-style-options">
+
+    <button type="button" class="connection-style-choice"
+            data-connection-style="default">
+      <span class="connection-style-default-icon"
+            aria-hidden="true">↺</span>
+      <span class="connection-style-name">
+        Use diagram default
+        <small>Follow the overall line style</small>
+      </span>
+      <span class="connection-style-check" aria-hidden="true">✓</span>
+    </button>
+
+    <button type="button" class="connection-style-choice"
+            data-connection-style="straight">
+      <svg viewBox="0 0 42 24" aria-hidden="true"
+           focusable="false">
+        <path d="M4 19 L38 5"/>
+      </svg>
+      <span class="connection-style-name">Straight</span>
+      <span class="connection-style-check" aria-hidden="true">✓</span>
+    </button>
+
+    <button type="button" class="connection-style-choice"
+            data-connection-style="orthogonal">
+      <svg viewBox="0 0 42 24" aria-hidden="true"
+           focusable="false">
+        <path d="M4 19 H21 V5 H38"/>
+      </svg>
+      <span class="connection-style-name">Orthogonal</span>
+      <span class="connection-style-check" aria-hidden="true">✓</span>
+    </button>
+
+    <button type="button" class="connection-style-choice"
+            data-connection-style="bezier">
+      <svg viewBox="0 0 42 24" aria-hidden="true"
+           focusable="false">
+        <path d="M4 19 C18 19 24 5 38 5"/>
+      </svg>
+      <span class="connection-style-name">Bézier</span>
+      <span class="connection-style-check" aria-hidden="true">✓</span>
+    </button>
+
+  </div>
 </div>
 
 

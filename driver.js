@@ -2314,17 +2314,38 @@ function updateDiagramConnectionBar() {
     return;
   }
 
+
   bar.hidden = false;
 
-  document.getElementById(
+  var label = document.getElementById(
     "connectionFormatLabel"
-  ).textContent = from.text + " → " + to.text;
+  );
+
+  label.textContent = from.text + " → " + to.text;
+  label.title = label.textContent;
+
+  var currentStyle =
+    normaliseConnectionOverride(connection.style) ||
+    "default";
 
   document.getElementById(
     "connectionFormatSelect"
-  ).value = normaliseConnectionOverride(
-    connection.style
-  ) || "default";
+  ).value = currentStyle;
+
+  bar.querySelectorAll(
+    "[data-connection-style]"
+  ).forEach(function (button) {
+
+    var active =
+      button.getAttribute("data-connection-style") ===
+      currentStyle;
+
+    button.classList.toggle("is-active", active);
+    button.setAttribute(
+      "aria-pressed",
+      active ? "true" : "false"
+    );
+  });
 }
 
 function clearDiagramConnectionSelection() {
@@ -2341,7 +2362,48 @@ function clearDiagramConnectionSelection() {
   }
 }
 
-function selectDiagramConnection(fromId, toId) {
+
+function positionConnectionFormatBar(clientX, clientY) {
+  var bar = document.getElementById("connectionFormatBar");
+  if (!bar || bar.hidden) return;
+
+  var rect = bar.getBoundingClientRect();
+
+  var x = Number.isFinite(clientX) ? clientX : 20;
+  var y = Number.isFinite(clientY) ? clientY : 20;
+
+  // Prefer positioning to the right of the click.
+  var left = x + 12;
+
+  if (left + rect.width > window.innerWidth - 8) {
+    left = x - rect.width - 12;
+  }
+
+  left = Math.max(
+    8,
+    Math.min(left, window.innerWidth - rect.width - 8)
+  );
+
+  // Prefer below the click, but move above if needed.
+  var top = y + 12;
+
+  if (top + rect.height > window.innerHeight - 8) {
+    top = y - rect.height - 12;
+  }
+
+  top = Math.max(
+    8,
+    Math.min(top, window.innerHeight - rect.height - 8)
+  );
+
+  bar.style.left = left + "px";
+  bar.style.top = top + "px";
+}
+
+function selectDiagramConnection(
+  fromId, toId, clientX, clientY
+) {
+
   if (
     activeDiagramTextEdit ||
     document.querySelector(
@@ -2374,8 +2436,11 @@ function selectDiagramConnection(fromId, toId) {
   updateDiagramSelectionBar();
   updateDiagramConnectionBar();
 
-  var canvas = document.getElementById("diagramCanvas");
-  var svg = document.getElementById("diagramConnections");
+  if (selectedDiagramConnection) {
+    positionConnectionFormatBar(clientX, clientY);
+  }
+
+  var canvas = document.getElementById("diagramCanvas");  var svg = document.getElementById("diagramConnections");
 
   if (canvas && svg) {
     drawConnections(canvas, svg);
@@ -2514,12 +2579,14 @@ if (connectionStyle === "straight") {
       (toNode ? toNode.text : conn.toId)
     );
 
-    hit.addEventListener("click", function (event) {
+        hit.addEventListener("click", function (event) {
       event.stopPropagation();
 
       selectDiagramConnection(
         conn.fromId,
-        conn.toId
+        conn.toId,
+        event.clientX,
+        event.clientY
       );
     });
 
@@ -2532,18 +2599,24 @@ if (connectionStyle === "straight") {
       event.preventDefault();
       event.stopPropagation();
 
+      
+      var bounds = hit.getBoundingClientRect();
+
       selectDiagramConnection(
         conn.fromId,
-        conn.toId
+        conn.toId,
+        bounds.left + bounds.width / 2,
+        bounds.top + bounds.height / 2
       );
 
-      var select = document.getElementById(
-        "connectionFormatSelect"
+      var firstChoice = document.querySelector(
+        "#connectionFormatBar [data-connection-style]"
       );
 
-      if (select && selectedDiagramConnection) {
-        select.focus();
+      if (firstChoice && selectedDiagramConnection) {
+        firstChoice.focus();
       }
+
     });
 
     svg.appendChild(hit);
@@ -5701,6 +5774,35 @@ if (connectionFormatSelect) {
     updateDiagramConnectionBar();
   });
 }
+
+
+/* B3.3a: Visual connection-style choices */
+
+document.querySelectorAll(
+  "#connectionFormatBar [data-connection-style]"
+).forEach(function (button) {
+
+  button.addEventListener("click", function (event) {
+    event.stopPropagation();
+
+    var select = document.getElementById(
+      "connectionFormatSelect"
+    );
+
+    if (!select || !selectedDiagramConnection) return;
+
+    select.value = button.getAttribute(
+      "data-connection-style"
+    );
+
+    // Reuse the existing B3.3 style-change logic.
+    select.dispatchEvent(
+      new Event("change", { bubbles: true })
+    );
+  });
+
+});
+
 
 if (connectionFormatClear) {
   connectionFormatClear.addEventListener(

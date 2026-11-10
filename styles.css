@@ -1124,3 +1124,145 @@ dialog.quick-colour-dialog::backdrop {
   stroke-width: 2.5 !important;
 }
 
+
+/* B3.3a: Floating connection-style menu */
+
+#connectionFormatBar {
+  position: fixed;
+  z-index: 15000;
+  display: block;
+  width: min(270px, calc(100vw - 24px));
+  max-height: 75vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 12px;
+  margin: 0;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.22);
+  color: #111827;
+}
+
+#connectionFormatBar[hidden],
+#connectionFormatSelect[hidden] {
+  display: none !important;
+}
+
+.connection-popup-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.connection-popup-heading strong {
+  font-size: 14px;
+}
+
+#connectionFormatClear {
+  padding: 2px 8px;
+  background: transparent;
+  color: #475569;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+#connectionFormatClear:hover {
+  background: #edf2f7;
+}
+
+#connectionFormatLabel {
+  display: -webkit-box;
+  flex: none;
+  margin: 0 0 10px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.connection-style-options {
+  display: grid;
+  gap: 4px;
+}
+
+#connectionFormatBar .connection-style-choice {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+  text-align: left;
+  cursor: pointer;
+}
+
+#connectionFormatBar .connection-style-choice:hover {
+  background: #eef5fc;
+}
+
+#connectionFormatBar .connection-style-choice.is-active {
+  background: #1f2937;
+  color: #fff;
+}
+
+.connection-style-choice svg {
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.connection-style-default-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  width: 42px;
+  font-size: 24px;
+}
+
+.connection-style-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.connection-style-name small {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.connection-style-check {
+  display: none;
+  font-weight: 700;
+}
+
+.connection-style-choice.is-active
+.connection-style-check {
+  display: inline;
+}
+
+#connectionFormatBar button:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+

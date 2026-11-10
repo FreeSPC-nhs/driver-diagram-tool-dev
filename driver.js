@@ -88,7 +88,7 @@ function createNode(options) {
     text: text,
     parentId: parentId,
     color: color,
-    autoSize: !!options.autoSize,
+    autoSize: options.autoSize == null ? true : !!options.autoSize,
     measures: Array.isArray(options.measures) ? options.measures : []
   };
 }
@@ -1571,10 +1571,22 @@ if (selectedDiagramNodeId === node.id) {
   box.classList.add("diagram-selected");
 }
 
-box.addEventListener("click", function () {
+
+box.addEventListener("click", function (e) {
+  if (e.target.closest("button, textarea")) return;
   selectDiagramNode(node.id);
 });
 
+// Double-click to start editing directly in the box.
+box.addEventListener("dblclick", function (e) {
+  if (e.target.closest("button, textarea")) return;
+  if (activeDiagramTextEdit) return;
+
+  e.preventDefault();
+  editNode(node.id);
+});
+
+// Keyboard support for selection and deselection.
 box.addEventListener("keydown", function (e) {
   if (e.target !== box) return;
 
@@ -1693,6 +1705,34 @@ if (nextLevel) {
 
   box.appendChild(rightBtn);
 }
+
+
+// B1.3: Contextual pencil for editing selected boxes.
+var pencilBtn = document.createElement("button");
+pencilBtn.type = "button";
+pencilBtn.className = "diagram-edit-pencil";
+pencilBtn.title = "Edit text";
+pencilBtn.setAttribute(
+  "aria-label",
+  "Edit text for " + node.text
+);
+
+pencilBtn.innerHTML =
+  '<svg viewBox="0 0 24 24" width="15" height="15" ' +
+  'fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" ' +
+  'aria-hidden="true" focusable="false">' +
+  '<path d="M12 20h9"/>' +
+  '<path d="M16.5 3.5a2.12 2.12 0 0 1 3 3' +
+  'L7 19l-4 1 1-4Z"/>' +
+  '</svg>';
+
+pencilBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  editNode(node.id);
+});
+
+box.appendChild(pencilBtn);
 
 
 /* B1.2: Display text or an inline editor */
@@ -2217,28 +2257,33 @@ if (parentId) {
 var selectedDiagramNodeId = null;
 var activeDiagramTextEdit = null;
 
+
 function selectDiagramNode(nodeId) {
-  // Do not discard an unfinished edit.
-  if (activeDiagramTextEdit &&
-      activeDiagramTextEdit.id !== nodeId) {
-    document.getElementById("diagramEditFeedback").textContent =
-      "Save or cancel the current edit first.";
+  // Do not change selection while editing text.
+  if (activeDiagramTextEdit) {
+    var feedback = document.getElementById("diagramEditFeedback");
+    if (feedback) {
+      feedback.textContent = "Save or cancel the current edit first.";
+    }
     return;
   }
 
-  selectedDiagramNodeId = nodeId;
+  // Clicking the selected element again deselects it.
+  selectedDiagramNodeId =
+    selectedDiagramNodeId === nodeId ? null : nodeId;
 
   document.querySelectorAll(".diagram-node").forEach(
     function (box) {
       box.classList.toggle(
         "diagram-selected",
-        box.getAttribute("data-id") === nodeId
+        box.getAttribute("data-id") === selectedDiagramNodeId
       );
     }
   );
 
   updateDiagramSelectionBar();
 }
+
 
 function updateDiagramSelectionBar() {
   var bar = document.getElementById("diagramSelectionBar");
@@ -2255,7 +2300,9 @@ function updateDiagramSelectionBar() {
     return;
   }
 
-  bar.hidden = false;
+  // Only show the selection bar during active editing.
+// Save and Cancel remain available there.
+bar.hidden = !activeDiagramTextEdit;
 
   document.getElementById(
     "diagramSelectedDescription"
@@ -2263,7 +2310,7 @@ function updateDiagramSelectionBar() {
 
   var editing = !!activeDiagramTextEdit;
 
-  document.getElementById("diagramEditTextBtn").hidden = editing;
+  document.getElementById("diagramEditTextBtn").hidden = true;
   document.getElementById("diagramSaveTextBtn").hidden = !editing;
   document.getElementById("diagramCancelTextBtn").hidden = !editing;
 

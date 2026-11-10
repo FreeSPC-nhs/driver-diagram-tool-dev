@@ -765,6 +765,47 @@ label.file-action-button {
 }
 
 
+/* B1.3: Contextual pencil editing button */
+
+.diagram-edit-pencil {
+  position: absolute;
+  top: -12px;
+  left: 8px;
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  width: 26px;
+  height: 26px;
+  padding: 0;
+
+  border: 1px solid #005eb8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #005eb8;
+
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  z-index: 5;
+  cursor: pointer;
+}
+
+/* Only show the pencil on the selected box */
+.diagram-node.diagram-selected:not(.diagram-text-editing)
+.diagram-edit-pencil {
+  display: inline-flex;
+}
+
+.diagram-edit-pencil:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+/* Never include editing controls in PNG/PDF exports */
+.export-clean .diagram-edit-pencil {
+  display: none !important;
+}
+
 
   </style>
 

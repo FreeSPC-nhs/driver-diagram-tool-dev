@@ -1593,7 +1593,7 @@ if (activeDiagramTextEdit &&
 
   heightById[n.id] = Math.max(
     measuredItemHeightsById[n.id] || 0,
-    96 + estimateMeasuresHeightPx(
+    128 + estimateMeasuresHeightPx(
       n.measures,
       editMeasuresFont
     )
@@ -1639,7 +1639,7 @@ nodes.forEach(function (n) {
   // Reserve space for the temporary inline text editor.
   if (activeDiagramTextEdit &&
       activeDiagramTextEdit.id === n.id) {
-    boxHeightById[n.id] = Math.max(boxH, 96);
+    boxHeightById[n.id] = Math.max(boxH, 128);
     return;
   }
 
@@ -1978,6 +1978,14 @@ if (activeDiagramTextEdit &&
   inlineInput.addEventListener("input", function () {
     activeDiagramTextEdit.draft = inlineInput.value;
 
+    var inlineFeedback = document.getElementById(
+      "diagramInlineTextFeedback"
+    );
+
+    if (inlineFeedback) {
+      inlineFeedback.textContent = "";
+    }
+
     document.getElementById(
       "diagramEditFeedback"
     ).textContent =
@@ -1998,7 +2006,53 @@ if (activeDiagramTextEdit &&
     }
   });
 
-  box.appendChild(inlineInput);
+
+  // B3.4a: Keep Save and Cancel inside the edited box.
+  var inlineEditor = document.createElement("div");
+  inlineEditor.className = "diagram-inline-editor";
+
+  var inlineActions = document.createElement("div");
+  inlineActions.className = "diagram-inline-actions";
+
+  var inlineSave = document.createElement("button");
+  inlineSave.type = "button";
+  inlineSave.className = "diagram-inline-save";
+  inlineSave.textContent = "✓";
+  inlineSave.title = "Save text (Ctrl+Enter)";
+  inlineSave.setAttribute("aria-label", "Save text changes");
+
+  inlineSave.addEventListener("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    saveDiagramInlineText();
+  });
+
+  var inlineCancel = document.createElement("button");
+  inlineCancel.type = "button";
+  inlineCancel.className = "diagram-inline-cancel";
+  inlineCancel.textContent = "×";
+  inlineCancel.title = "Cancel editing (Escape)";
+  inlineCancel.setAttribute("aria-label", "Cancel text changes");
+
+  inlineCancel.addEventListener("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    cancelDiagramInlineText();
+  });
+
+  var inlineFeedback = document.createElement("span");
+  inlineFeedback.id = "diagramInlineTextFeedback";
+  inlineFeedback.className = "diagram-inline-feedback";
+  inlineFeedback.setAttribute("role", "status");
+
+  inlineActions.appendChild(inlineSave);
+  inlineActions.appendChild(inlineCancel);
+
+  inlineEditor.appendChild(inlineInput);
+  inlineEditor.appendChild(inlineActions);
+  inlineEditor.appendChild(inlineFeedback);
+
+  box.appendChild(inlineEditor);
 
 } else {
 
@@ -3247,7 +3301,7 @@ function updateDiagramSelectionBar() {
 
   // Only show the selection bar during active editing.
 // Save and Cancel remain available there.
-bar.hidden = !activeDiagramTextEdit;
+bar.hidden = true;
 
   document.getElementById(
     "diagramSelectedDescription"
@@ -3305,10 +3359,15 @@ function saveDiagramInlineText() {
   ).trim();
 
   if (!nextText) {
-    document.getElementById("diagramEditFeedback").textContent =
-      "Text cannot be empty.";
-    if (input) input.focus();
-    return;
+    var feedback =
+      document.getElementById("diagramInlineTextFeedback") ||
+      document.getElementById("diagramEditFeedback");
+
+    if (feedback) {
+      feedback.textContent = "Text cannot be empty.";
+    }
+
+    if (input) input.focus();    return;
   }
 
   var node = nodes.find(function (n) {

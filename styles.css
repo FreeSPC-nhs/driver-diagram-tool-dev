@@ -1266,3 +1266,65 @@ dialog.quick-colour-dialog::backdrop {
 }
 
 
+/* B3.4a — Save/Cancel directly inside edited boxes */
+
+.diagram-inline-editor {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diagram-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.diagram-node .diagram-inline-actions button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 21px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.diagram-inline-save {
+  background: #edf8f0;
+  border: 1px solid #16803c;
+  color: #16803c;
+}
+
+.diagram-inline-cancel {
+  background: #fff0ee;
+  border: 1px solid #ba352e;
+  color: #ba352e;
+}
+
+.diagram-node .diagram-inline-actions button:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+.diagram-inline-feedback {
+  color: #a61911;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.diagram-inline-feedback:empty {
+  display: none;
+}
+
+/* Editing controls are never part of diagram exports */
+.export-clean .diagram-inline-actions {
+  display: none !important;
+}
+
+

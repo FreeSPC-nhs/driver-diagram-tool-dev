@@ -1,0 +1,692 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FreeSPC Driver Diagram Tests</title>
+<style>
+  body {
+    font: 16px system-ui, sans-serif;
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    color: #182536;
+  }
+  button {
+    background: #005eb8;
+    color: white;
+    padding: .7rem 1rem;
+    border: 0;
+    border-radius: 6px;
+    font: inherit;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .55; }
+  ol { padding: 0; }
+  li {
+    list-style: none;
+    margin: .65rem 0;
+    padding: .65rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  .pass { border-left: 5px solid #16803c; }
+  .fail { border-left: 5px solid #b42318; }
+  .detail {
+    display: block;
+    font-size: .85rem;
+    margin-top: .25rem;
+    color: #555;
+  }
+  #testFrame {
+    position: absolute;
+    width: 1250px;
+    height: 850px;
+    left: -20000px;
+    top: 0;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>Driver Diagram Tool — Regression Tests</h1>
+
+<p>
+  Run automated checks against an isolated copy of the
+  development application. Your diagrams are not affected.
+</p>
+
+<button id="run" type="button">Run tests</button>
+
+<p id="summary" role="status" aria-live="polite">
+  Not run yet.
+</p>
+
+<ol id="results"></ol>
+
+<iframe id="testFrame"
+        title="Isolated driver diagram test application">
+</iframe>
+
+<script>
+const runButton = document.getElementById("run");
+const summary = document.getElementById("summary");
+const results = document.getElementById("results");
+const frame = document.getElementById("testFrame");
+
+function check(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function waitForFrame() {
+  return new Promise(function (resolve, reject) {
+    const timeout = setTimeout(function () {
+      frame.removeEventListener("load", onLoad);
+      reject(new Error("Test application did not load"));
+    }, 12000);
+
+    function onLoad() {
+      clearTimeout(timeout);
+      resolve(frame.contentWindow);
+    }
+
+    frame.addEventListener("load", onLoad, { once: true });
+    frame.src = "../index.html?regression=" + Date.now();
+  });
+}
+
+function afterLayout(w) {
+  return new Promise(function (resolve) {
+    w.requestAnimationFrame(function () {
+      w.requestAnimationFrame(resolve);
+    });
+  });
+}
+
+// Create the same small test diagram before each test.
+function reset(w) {
+  w.nodes = [
+    { id:"1", level:"aim", text:"Improve care",
+      parentId:"", color:"", autoSize:true, measures:[] },
+    { id:"2", level:"primary", text:"Primary A",
+      parentId:"1", color:"#fff7cc", autoSize:true, measures:[] },
+    { id:"3", level:"primary", text:"Primary B",
+      parentId:"1", color:"", autoSize:true, measures:[] },
+    { id:"4", level:"secondary", text:"Secondary A1",
+      parentId:"2", color:"", autoSize:true,
+      measures:[{type:"outcome",text:"Outcome A"}] },
+    { id:"5", level:"secondary", text:"Secondary A2",
+      parentId:"2", color:"", autoSize:true, measures:[] },
+    { id:"6", level:"secondary", text:"Secondary B1",
+      parentId:"3", color:"", autoSize:true, measures:[] },
+    { id:"7", level:"change", text:"Change idea",
+      parentId:"4", color:"", autoSize:true, measures:[] }
+  ];
+
+  w.connections = [
+    {fromId:"1",toId:"2"},
+    {fromId:"1",toId:"3"},
+    {fromId:"2",toId:"4"},
+    {fromId:"2",toId:"5"},
+    {fromId:"3",toId:"6"},
+    {fromId:"4",toId:"7"},
+    {fromId:"3",toId:"4",style:"orthogonal"}
+  ];
+
+  w.nextId = 8;
+  w.colorOptions = [{label:"Focus",value:"#fff7cc"}];
+
+  w.columnTitles = {
+    aim:"Aim",
+    primary:"Primary drivers",
+    secondary:"Secondary drivers",
+    change:"Change ideas"
+  };
+
+  w.diagramAppearance = {
+    boxHeight:32,
+    verticalGap:8,
+    fontSize:13,
+    fontFamily:"",
+    fontBold:false,
+    connectionStyle:"bezier"
+  };
+
+  w.legendVisible = true;
+  w.selectedDiagramNodeId = null;
+  w.selectedDiagramMeasure = null;
+  w.selectedDiagramConnection = null;
+  w.activeDiagramTextEdit = null;
+  w.measuredBoxHeightsById = {};
+  w.measuredItemHeightsById = {};
+  w.suppressAutosizeRelayout = false;
+
+  w.setAppearanceInputsFromConfig();
+  w.initialiseDiagramHistory();
+  w.updateAllViews();
+}
+
+// Exercise the application's actual portable-data loader.
+function loadPortable(w, project) {
+  const data = w.document.createElement("script");
+  data.id = "embeddedProjectData";
+  data.type = "application/json";
+  data.textContent = JSON.stringify(project);
+  w.document.body.appendChild(data);
+
+  try {
+    return w.loadEmbeddedProjectIfPresent();
+  } finally {
+    data.remove();
+  }
+}
+
+const tests = [
+
+  ["Application starts", async w => {
+    check(typeof w.createNode === "function",
+      "createNode not found");
+    check(typeof w.updateAllViews === "function",
+      "updateAllViews not found");
+    check(w.document.querySelector(".diagram-node"),
+      "No diagram box rendered");
+  }],
+
+  ["Node defaults and hierarchy", async w => {
+    const n = w.createNode({
+      level:"primary", text:"New primary", parentId:"1"
+    });
+
+    check(n.id === "8", "New ID should be 8");
+    check(n.autoSize === true,
+      "Auto-size should default to true");
+
+    check(w.createNode({
+      level:"primary",autoSize:false
+    }).autoSize === false,
+      "Explicit fixed size not preserved");
+
+    check(w.getNextLevel("secondary") === "change",
+      "Next level incorrect");
+  }],
+
+  ["Adding a connected element", async w => {
+    const n = w.createNode({
+      level:"change",text:"New change",parentId:"4"
+    });
+
+    w.nodes.push(n);
+    w.connections.push({fromId:"4",toId:n.id});
+    w.updateAllViews();
+    await afterLayout(w);
+
+    check(w.document.querySelector(
+      '.diagram-node[data-id="8"]'
+    ), "New box missing");
+
+    check(w.connections.some(c =>
+      c.fromId === "4" && c.toId === "8"
+    ), "Parent connection missing");
+  }],
+
+  ["Measure preservation", async w => {
+    w.nodes.find(n => n.id === "4").measures.push({
+      type:"balancing",text:"Workload"
+    });
+
+    w.updateAllViews();
+
+    const saved = w.getPortableProjectData();
+    const m = saved.nodes.find(n => n.id === "4").measures;
+
+    check(m.length === 2, "Incorrect measure count");
+    check(m[1].type === "balancing",
+      "Measure type lost");
+    check(m[1].text === "Workload",
+      "Measure text lost");
+  }],
+
+  ["Reordering preserves connections", async w => {
+    const before = JSON.stringify(w.connections);
+
+    w.reorderDiagramSibling("5","4",false);
+
+    const order = w.nodes.filter(n =>
+      n.level === "secondary" && n.parentId === "2"
+    ).map(n => n.id);
+
+    check(order.join(",") === "5,4",
+      "Sibling order incorrect");
+
+    check(JSON.stringify(w.connections) === before,
+      "Connections changed");
+  }],
+
+  ["Different parents cannot be mixed", async w => {
+    const before = JSON.stringify(w.nodes);
+
+    w.reorderDiagramSibling("6","4",false);
+
+    check(JSON.stringify(w.nodes) === before,
+      "Cross-parent move was accepted");
+  }],
+
+  ["Deleting a branch removes its connections", async w => {
+    const previousConfirm = w.confirm;
+    w.confirm = function () { return true; };
+
+    try {
+      w.deleteNode("2");
+    } finally {
+      w.confirm = previousConfirm;
+    }
+
+    ["2","4","5","7"].forEach(id => {
+      check(!w.nodes.some(n => n.id === id),
+        "Deleted node remains: " + id);
+    });
+
+    check(w.nodes.some(n => n.id === "6"),
+      "Unrelated branch was deleted");
+
+    check(w.connections.every(c =>
+      w.nodes.some(n => n.id === c.fromId) &&
+      w.nodes.some(n => n.id === c.toId)
+    ), "Orphan connection remains");
+  }],
+
+  ["Undo and Redo", async w => {
+    w.nodes.find(n => n.id === "2").text =
+      "Updated primary";
+
+    w.updateAllViews();
+    w.undoDiagramChange();
+
+    check(w.nodes.find(n => n.id === "2").text ===
+      "Primary A", "Undo failed");
+
+    w.redoDiagramChange();
+
+    check(w.nodes.find(n => n.id === "2").text ===
+      "Updated primary", "Redo failed");
+  }],
+
+  ["New edits clear Redo history", async w => {
+    w.nodes.find(n => n.id === "2").text =
+      "First change";
+
+    w.updateAllViews();
+    w.undoDiagramChange();
+
+    w.nodes.find(n => n.id === "2").text =
+      "Different change";
+
+    w.updateAllViews();
+    w.redoDiagramChange();
+
+    check(w.nodes.find(n => n.id === "2").text ===
+      "Different change", "Old Redo branch returned");
+  }],
+
+  ["Individual connection styles", async w => {
+    const saved = w.getPortableProjectData();
+
+    const styled = saved.connections.find(c =>
+      c.fromId === "3" && c.toId === "4"
+    );
+
+    check(styled && styled.style === "orthogonal",
+      "Individual style missing");
+
+    check(saved.diagramAppearance.connectionStyle ===
+      "bezier", "Overall style changed");
+  }],
+
+  ["Portable HTML data round-trip", async w => {
+    const saved = w.getPortableProjectData();
+
+    w.nodes = [];
+    w.connections = [];
+    w.colorOptions = [];
+
+    check(loadPortable(w,saved) === true,
+      "Portable data failed to load");
+
+    check(w.nodes.length === 7,
+      "Node count changed");
+
+    check(w.nodes.find(n => n.id === "4")
+      .measures[0].text === "Outcome A",
+      "Measure lost");
+
+    check(w.findDiagramConnection("3","4").style ===
+      "orthogonal", "Connection style lost");
+
+    check(w.colorOptions[0].label === "Focus",
+      "Colour palette not restored");
+  }],
+
+  ["Older portable diagram compatibility", async w => {
+    const old = w.getPortableProjectData();
+
+    delete old.diagramAppearance.connectionStyle;
+    old.connections.forEach(c => delete c.style);
+
+    check(loadPortable(w,old) === true,
+      "Older project was rejected");
+
+    check(w.diagramAppearance.connectionStyle ===
+      "bezier", "Default style incorrect");
+
+    check(!w.findDiagramConnection("3","4").style,
+      "Unexpected individual override");
+  }]
+
+];
+
+
+/* B4.2a.1: Test the live inline-creation workflow. */
+
+tests.push(
+
+  ["New box opens as an inline draft", async w => {
+    const oldCount = w.nodes.length;
+    const oldHistory = w.diagramHistoryIndex;
+
+    w.addChildForNode("2");
+    await afterLayout(w);
+
+    const draft = w.activeDiagramTextEdit;
+    const node = draft && w.nodes.find(n => n.id === draft.id);
+    const input = w.document.getElementById("diagramInlineText");
+
+    check(draft && draft.isNew === true,
+      "New box did not enter draft editing mode");
+
+    check(node && node.level === "secondary" &&
+      node.parentId === "2",
+      "Draft has the wrong level or parent");
+
+    check(w.nodes.length === oldCount + 1,
+      "Draft box was not created");
+
+    check(w.connections.some(c =>
+      c.fromId === "2" && c.toId === node.id),
+      "Draft connection is missing");
+
+    check(input && w.document.querySelector(".diagram-inline-save"),
+      "Inline editor or tick button is missing");
+
+    check(w.diagramHistoryIndex === oldHistory,
+      "Creating a draft incorrectly recorded an Undo step");
+  }],
+
+  ["Confirm draft creates one Undo step", async w => {
+    const before = w.diagramHistoryIndex;
+
+    w.addChildForNode("2");
+    const draftId = w.activeDiagramTextEdit.id;
+    const input = w.document.getElementById("diagramInlineText");
+
+    check(input, "Draft text field was not created");
+
+    input.value = "Confirmed test driver";
+
+    const tick = w.document.querySelector(".diagram-inline-save");
+    check(tick, "Save tick is missing");
+    tick.click();
+
+    check(!w.activeDiagramTextEdit,
+      "Editor did not close after saving");
+
+    check(w.nodes.some(n => n.id === draftId &&
+      n.text === "Confirmed test driver"),
+      "New text was not saved");
+
+    check(w.diagramHistoryIndex === before + 1,
+      "Confirm should create exactly one Undo step");
+
+    w.undoDiagramChange();
+
+    check(!w.nodes.some(n => n.id === draftId),
+      "Undo did not remove the confirmed box");
+
+    check(!w.connections.some(c => c.toId === draftId),
+      "Undo left the draft connection behind");
+
+    w.redoDiagramChange();
+
+    check(w.nodes.some(n => n.id === draftId &&
+      n.text === "Confirmed test driver"),
+      "Redo did not restore the confirmed box");
+
+    check(w.connections.some(c =>
+      c.fromId === "2" && c.toId === draftId),
+      "Redo did not restore its connection");
+  }],
+
+  ["Cancel draft leaves no diagram or history change", async w => {
+    const oldNodes = JSON.stringify(w.nodes);
+    const oldConnections = JSON.stringify(w.connections);
+    const oldNextId = w.nextId;
+    const oldHistoryIndex = w.diagramHistoryIndex;
+    const oldHistoryLength = w.diagramHistoryStates.length;
+
+    w.addChildForNode("2");
+
+    const cross = w.document.querySelector(".diagram-inline-cancel");
+    check(cross, "Cancel cross is missing");
+    cross.click();
+
+    check(!w.activeDiagramTextEdit,
+      "Draft editor remains open");
+
+    check(JSON.stringify(w.nodes) === oldNodes,
+      "Cancel changed the nodes");
+
+    check(JSON.stringify(w.connections) === oldConnections,
+      "Cancel changed the connections");
+
+    check(w.nextId === oldNextId,
+      "Cancel did not restore the next ID");
+
+    check(w.diagramHistoryIndex === oldHistoryIndex &&
+      w.diagramHistoryStates.length === oldHistoryLength,
+      "Cancel created or removed an Undo/Redo entry");
+  }],
+
+  ["Empty draft is rejected", async w => {
+    w.addChildForNode("2");
+
+    const draftId = w.activeDiagramTextEdit.id;
+    const input = w.document.getElementById("diagramInlineText");
+
+    check(input, "Draft input missing");
+
+    input.value = "   ";
+    w.document.querySelector(".diagram-inline-save").click();
+
+    check(w.activeDiagramTextEdit &&
+      w.activeDiagramTextEdit.id === draftId,
+      "Empty draft unexpectedly closed");
+
+    check(w.nodes.some(n => n.id === draftId),
+      "Empty draft was unexpectedly removed");
+
+    w.cancelDiagramInlineText();
+
+    check(!w.nodes.some(n => n.id === draftId),
+      "Cancelled empty draft remains in the diagram");
+  }],
+
+  ["Draft levels and inherited colours", async w => {
+    const cases = [
+      ["1", "primary"],
+      ["2", "secondary"],
+      ["4", "change"]
+    ];
+
+    for (const [parentId, expectedLevel] of cases) {
+      const parent = w.nodes.find(n => n.id === parentId);
+
+      w.addChildForNode(parentId);
+
+      const draft = w.activeDiagramTextEdit;
+      const node = draft && w.nodes.find(n => n.id === draft.id);
+
+      check(node && node.level === expectedLevel,
+        "Wrong level for child of " + parentId);
+
+      check(node.parentId === parentId,
+        "Wrong parent for child of " + parentId);
+
+      check(node.color === parent.color,
+        "New box did not inherit its parent's colour");
+
+      w.cancelDiagramInlineText();
+    }
+  }],
+
+  ["Cancelled draft preserves Redo branch", async w => {
+    w.nodes.find(n => n.id === "2").text = "Earlier change";
+    w.updateAllViews();
+    w.undoDiagramChange();
+
+    w.addChildForNode("2");
+    w.cancelDiagramInlineText();
+    w.redoDiagramChange();
+
+    check(w.nodes.find(n => n.id === "2").text ===
+      "Earlier change",
+      "Cancelling a draft destroyed the earlier Redo branch");
+  }]
+
+);
+
+
+/* B4.1d.1 — Invalid CSV files must not replace the diagram. */
+
+tests.push(
+
+  ["CSV missing parent is rejected safely", async w => {
+    const before = w.captureDiagramHistoryState();
+
+    const invalidCsv =
+      'id,level,parent_id,text\n' +
+      '1,aim,,Improve care\n' +
+      '2,primary,99,Invalid parent';
+
+    const originalAlert = w.alert;
+    let message = "";
+
+    try {
+      w.alert = text => { message = String(text); };
+      w.uploadCsv(invalidCsv);
+    } finally {
+      w.alert = originalAlert;
+    }
+
+    check(message.includes("CSV import cancelled"),
+      "No validation warning appeared");
+
+    check(message.includes("parent ID 99"),
+      "Missing parent was not identified");
+
+    check(w.captureDiagramHistoryState() === before,
+      "Invalid CSV changed the existing diagram");
+  }],
+
+  ["Malformed CSV data is rejected safely", async w => {
+    const before = w.captureDiagramHistoryState();
+
+    const invalidCsv = w.Papa.unparse([
+      {
+        id:"1", level:"aim", parent_id:"",
+        text:"Improve care", measures_json:"[]"
+      },
+      {
+        id:"2", level:"primary", parent_id:"1",
+        text:"Invalid measures", measures_json:"[invalid"
+      }
+    ]);
+
+    const originalAlert = w.alert;
+    let message = "";
+
+    try {
+      w.alert = text => { message = String(text); };
+      w.uploadCsv(invalidCsv);
+    } finally {
+      w.alert = originalAlert;
+    }
+
+    check(message.includes("CSV import cancelled"),
+      "Malformed data was not rejected");
+
+    check(message.includes("measures_json"),
+      "The malformed field was not identified");
+
+    check(w.captureDiagramHistoryState() === before,
+      "Malformed CSV changed the existing diagram");
+  }]
+
+);
+
+// Run all tests in sequence.
+
+
+runButton.addEventListener("click", async function () {
+  runButton.disabled = true;
+  results.replaceChildren();
+  summary.textContent = "Running tests...";
+
+  let passed = 0;
+
+  try {
+    const w = await waitForFrame();
+
+    check(typeof w.updateAllViews === "function",
+      "driver.js did not load");
+
+    for (const [name,test] of tests) {
+      const item = document.createElement("li");
+
+      try {
+        reset(w);
+        await test(w);
+
+        item.className = "pass";
+        item.textContent = "PASS: " + name;
+        passed++;
+
+      } catch (error) {
+        item.className = "fail";
+        item.textContent = "FAIL: " + name;
+
+        const detail = document.createElement("span");
+        detail.className = "detail";
+        detail.textContent =
+          error.message || String(error);
+
+        item.appendChild(detail);
+      }
+
+      results.appendChild(item);
+    }
+
+    summary.textContent =
+      passed + " / " + tests.length + " tests passed.";
+
+  } catch (error) {
+    summary.textContent =
+      "Could not start tests: " + error.message;
+
+  } finally {
+    runButton.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

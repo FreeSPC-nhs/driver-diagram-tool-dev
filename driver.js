@@ -4906,18 +4906,189 @@ connection_style: normaliseConnectionStyle(
   URL.revokeObjectURL(url);
 }
 
+
+/* B4.1d.1 — Validate CSV before replacing the current diagram. */
+
+function validateDiagramCsvBeforeImport(results) {
+  var errors = [];
+
+  var rows = results && Array.isArray(results.data)
+    ? results.data : [];
+
+  var fields = results && results.meta &&
+    Array.isArray(results.meta.fields)
+      ? results.meta.fields
+      : (rows[0] ? Object.keys(rows[0]) : []);
+
+  // Do not ignore errors reported by the CSV parser.
+  if (results && results.errors && results.errors.length) {
+    errors.push(
+      "The CSV contains parsing errors (check its quoting and columns)."
+    );
+  }
+
+  // These columns are required for a valid driver diagram.
+  ["id", "level", "text", "parent_id"].forEach(function (field) {
+    if (fields.indexOf(field) === -1) {
+      errors.push("Missing required column: " + field + ".");
+    }
+  });
+
+  if (!rows.length) {
+    errors.push("The CSV contains no diagram elements.");
+  }
+
+  var identifiers = Object.create(null);
+  var references = [];
+  var aimCount = 0;
+
+  rows.forEach(function (row, index) {
+    var line = index + 2; // Row 1 contains the headers.
+
+    if (!row || typeof row !== "object" ||
+        Array.isArray(row)) {
+      errors.push("Row " + line + ": not a valid record.");
+      return;
+    }
+
+    var id = String(
+      row.id == null ? "" : row.id
+    ).trim();
+
+    var level = String(
+      row.level == null ? "" : row.level
+    ).trim();
+
+    var nodeText = String(
+      row.text == null ? "" : row.text
+    ).trim();
+
+    var parent = String(
+      row.parent_id == null ? "" : row.parent_id
+    ).trim();
+
+    // Check element identifiers.
+    if (!id) {
+      errors.push("Row " + line + ": missing element ID.");
+    } else if (identifiers[id]) {
+      errors.push(
+        "Row " + line + ": duplicate element ID " + id + "."
+      );
+    } else {
+      identifiers[id] = true;
+    }
+
+    // Check diagram levels.
+    if (["aim", "primary", "secondary", "change"]
+        .indexOf(level) === -1) {
+      errors.push(
+        "Row " + line + ": unrecognised level " +
+        (level || "(blank)") + "."
+      );
+    }
+
+    if (level === "aim") aimCount++;
+
+    if (!nodeText) {
+      errors.push("Row " + line + ": missing element text.");
+    }
+
+    // Collect parent references to verify afterwards.
+    if (parent) {
+      references.push({ line: line, id: parent });
+    }
+
+    var extra = String(
+      row.extra_parents == null ? "" : row.extra_parents
+    ).trim();
+
+    if (extra) {
+      extra.split(/[;,]/).forEach(function (value) {
+        value = value.trim();
+        if (value) {
+          references.push({ line: line, id: value });
+        }
+      });
+    }
+
+    // Check optional structured fields.
+    // Older CSVs may not include these columns.
+    [
+      "measures_json",
+      "palette_json",
+      "connection_styles_json"
+    ].forEach(function (field) {
+
+      var raw = String(
+        row[field] == null ? "" : row[field]
+      ).trim();
+
+      if (!raw) return;
+
+      try {
+        var value = JSON.parse(raw);
+
+        if (!Array.isArray(value)) {
+          errors.push(
+            "Row " + line + ": " + field +
+            " must contain a list."
+          );
+        }
+      } catch (error) {
+        errors.push(
+          "Row " + line + ": invalid JSON in " +
+          field + "."
+        );
+      }
+    });
+  });
+
+  if (rows.length && !aimCount) {
+    errors.push(
+      "The CSV does not contain an Aim element."
+    );
+  }
+
+  // Confirm that all referenced parents actually exist.
+  references.forEach(function (reference) {
+    if (!identifiers[reference.id]) {
+      errors.push(
+        "Row " + reference.line +
+        ": parent ID " + reference.id +
+        " does not exist in this CSV."
+      );
+    }
+  });
+
+  return errors;
+}
+
 function uploadCsv(file) {
+
   if (!file) return;
 
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
     complete: function (results) {
-      if (results.errors && results.errors.length > 0) {
-        console.error("CSV parse errors", results.errors);
+
+      // B4.1d.1: Reject invalid files before changing data.
+      var errors = validateDiagramCsvBeforeImport(results);
+
+      if (errors.length) {
+        alert(
+          "CSV import cancelled. Your current diagram has not changed.\n\n" +
+          errors.slice(0, 8).join("\n") +
+          (errors.length > 8
+            ? "\n...and " + (errors.length - 8) + " more issue(s)."
+            : "")
+        );
+
+        return;
       }
 
       var rows = results.data || [];
+
       var imported = [];
       var extraConnectionsRaw = []; // { childId, parents[] }
       var connectionStylesRaw = [];
@@ -5148,7 +5319,17 @@ diagramAppearance.connectionStyle =
       renderLegend();
 
       updateAllViews();
+
       alert("Loaded " + nodes.length + " items from CSV.");
+    },
+
+    error: function (error) {
+      alert(
+        "CSV could not be read. Your current diagram has not changed.\n\n" +
+        (error && error.message
+          ? error.message
+          : "Please check the selected file.")
+      );
     }
   });
 }

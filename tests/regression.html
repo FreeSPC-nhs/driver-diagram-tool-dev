@@ -386,7 +386,187 @@ const tests = [
 
 ];
 
+
+/* B4.2a.1: Test the live inline-creation workflow. */
+
+tests.push(
+
+  ["New box opens as an inline draft", async w => {
+    const oldCount = w.nodes.length;
+    const oldHistory = w.diagramHistoryIndex;
+
+    w.addChildForNode("2");
+    await afterLayout(w);
+
+    const draft = w.activeDiagramTextEdit;
+    const node = draft && w.nodes.find(n => n.id === draft.id);
+    const input = w.document.getElementById("diagramInlineText");
+
+    check(draft && draft.isNew === true,
+      "New box did not enter draft editing mode");
+
+    check(node && node.level === "secondary" &&
+      node.parentId === "2",
+      "Draft has the wrong level or parent");
+
+    check(w.nodes.length === oldCount + 1,
+      "Draft box was not created");
+
+    check(w.connections.some(c =>
+      c.fromId === "2" && c.toId === node.id),
+      "Draft connection is missing");
+
+    check(input && w.document.querySelector(".diagram-inline-save"),
+      "Inline editor or tick button is missing");
+
+    check(w.diagramHistoryIndex === oldHistory,
+      "Creating a draft incorrectly recorded an Undo step");
+  }],
+
+  ["Confirm draft creates one Undo step", async w => {
+    const before = w.diagramHistoryIndex;
+
+    w.addChildForNode("2");
+    const draftId = w.activeDiagramTextEdit.id;
+    const input = w.document.getElementById("diagramInlineText");
+
+    check(input, "Draft text field was not created");
+
+    input.value = "Confirmed test driver";
+
+    const tick = w.document.querySelector(".diagram-inline-save");
+    check(tick, "Save tick is missing");
+    tick.click();
+
+    check(!w.activeDiagramTextEdit,
+      "Editor did not close after saving");
+
+    check(w.nodes.some(n => n.id === draftId &&
+      n.text === "Confirmed test driver"),
+      "New text was not saved");
+
+    check(w.diagramHistoryIndex === before + 1,
+      "Confirm should create exactly one Undo step");
+
+    w.undoDiagramChange();
+
+    check(!w.nodes.some(n => n.id === draftId),
+      "Undo did not remove the confirmed box");
+
+    check(!w.connections.some(c => c.toId === draftId),
+      "Undo left the draft connection behind");
+
+    w.redoDiagramChange();
+
+    check(w.nodes.some(n => n.id === draftId &&
+      n.text === "Confirmed test driver"),
+      "Redo did not restore the confirmed box");
+
+    check(w.connections.some(c =>
+      c.fromId === "2" && c.toId === draftId),
+      "Redo did not restore its connection");
+  }],
+
+  ["Cancel draft leaves no diagram or history change", async w => {
+    const oldNodes = JSON.stringify(w.nodes);
+    const oldConnections = JSON.stringify(w.connections);
+    const oldNextId = w.nextId;
+    const oldHistoryIndex = w.diagramHistoryIndex;
+    const oldHistoryLength = w.diagramHistoryStates.length;
+
+    w.addChildForNode("2");
+
+    const cross = w.document.querySelector(".diagram-inline-cancel");
+    check(cross, "Cancel cross is missing");
+    cross.click();
+
+    check(!w.activeDiagramTextEdit,
+      "Draft editor remains open");
+
+    check(JSON.stringify(w.nodes) === oldNodes,
+      "Cancel changed the nodes");
+
+    check(JSON.stringify(w.connections) === oldConnections,
+      "Cancel changed the connections");
+
+    check(w.nextId === oldNextId,
+      "Cancel did not restore the next ID");
+
+    check(w.diagramHistoryIndex === oldHistoryIndex &&
+      w.diagramHistoryStates.length === oldHistoryLength,
+      "Cancel created or removed an Undo/Redo entry");
+  }],
+
+  ["Empty draft is rejected", async w => {
+    w.addChildForNode("2");
+
+    const draftId = w.activeDiagramTextEdit.id;
+    const input = w.document.getElementById("diagramInlineText");
+
+    check(input, "Draft input missing");
+
+    input.value = "   ";
+    w.document.querySelector(".diagram-inline-save").click();
+
+    check(w.activeDiagramTextEdit &&
+      w.activeDiagramTextEdit.id === draftId,
+      "Empty draft unexpectedly closed");
+
+    check(w.nodes.some(n => n.id === draftId),
+      "Empty draft was unexpectedly removed");
+
+    w.cancelDiagramInlineText();
+
+    check(!w.nodes.some(n => n.id === draftId),
+      "Cancelled empty draft remains in the diagram");
+  }],
+
+  ["Draft levels and inherited colours", async w => {
+    const cases = [
+      ["1", "primary"],
+      ["2", "secondary"],
+      ["4", "change"]
+    ];
+
+    for (const [parentId, expectedLevel] of cases) {
+      const parent = w.nodes.find(n => n.id === parentId);
+
+      w.addChildForNode(parentId);
+
+      const draft = w.activeDiagramTextEdit;
+      const node = draft && w.nodes.find(n => n.id === draft.id);
+
+      check(node && node.level === expectedLevel,
+        "Wrong level for child of " + parentId);
+
+      check(node.parentId === parentId,
+        "Wrong parent for child of " + parentId);
+
+      check(node.color === parent.color,
+        "New box did not inherit its parent's colour");
+
+      w.cancelDiagramInlineText();
+    }
+  }],
+
+  ["Cancelled draft preserves Redo branch", async w => {
+    w.nodes.find(n => n.id === "2").text = "Earlier change";
+    w.updateAllViews();
+    w.undoDiagramChange();
+
+    w.addChildForNode("2");
+    w.cancelDiagramInlineText();
+    w.redoDiagramChange();
+
+    check(w.nodes.find(n => n.id === "2").text ===
+      "Earlier change",
+      "Cancelling a draft destroyed the earlier Redo branch");
+  }]
+
+);
+
 // Run all tests in sequence.
+
 runButton.addEventListener("click", async function () {
   runButton.disabled = true;
   results.replaceChildren();

@@ -608,11 +608,6 @@ function enableMeasureReordering(wrap, node) {
     row.title =
       "Drag to reorder. Alt + Up/Down also moves this measure.";
 
-    var grip = document.createElement("span");
-    grip.className = "diagram-measure-grip";
-    grip.textContent = "⠿";
-    grip.setAttribute("aria-hidden", "true");
-    row.insertBefore(grip, row.firstChild);
 
     row.addEventListener("dragstart", function (event) {
       if (

@@ -253,6 +253,25 @@
     <section class="card" id="diagramArea">
       <h2>4. Your driver diagram</h2>
 
+      <!-- B4.4a.1: Diagram / Outline switch -->
+      <div id="diagramViewSwitch"
+           role="group"
+           aria-label="View diagram as">
+
+        <button type="button"
+                id="btnViewDiagram"
+                aria-pressed="true">
+          Diagram
+        </button>
+
+        <button type="button"
+                id="btnViewOutline"
+                aria-pressed="false">
+          Outline
+        </button>
+
+      </div>
+
 
 <!-- B1.2: Controls for the selected diagram element -->
 <div id="diagramSelectionBar" role="group"
@@ -349,7 +368,21 @@
 
 
 
-      <!-- Export area: diagram + legend (used for PNG/PDF export) -->
+      <!-- B4.4a.1: Read-only Outline view -->
+<div id="diagramOutlineView"
+     hidden
+     aria-label="Diagram outline">
+
+  <p>
+    Browse your diagram as an expandable list.
+    To make changes, switch back to Diagram view.
+  </p>
+
+  <ul id="diagramOutlineTree"></ul>
+
+</div>
+
+<!-- Export area: diagram + legend (used for PNG/PDF export) -->
       <div id="exportArea">
         <div id="diagramCanvasWrapper">
           <div id="diagramCanvas">

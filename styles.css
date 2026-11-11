@@ -1693,3 +1693,146 @@ dialog.quick-colour-dialog::backdrop {
   margin-bottom: 0;
 }
 
+
+/* B4.4a.1 — Diagram / Outline switch */
+
+#diagramViewSwitch {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0 0 0.9rem;
+}
+
+#diagramViewSwitch button {
+  background: #e8edf5;
+  color: #005eb8;
+  border: 1px solid #b8cce3;
+}
+
+#diagramViewSwitch button[aria-pressed="true"] {
+  background: #005eb8;
+  color: #fff;
+}
+
+#diagramViewSwitch button:focus-visible,
+#diagramOutlineTree summary:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+#exportArea[hidden],
+#diagramOutlineView[hidden] {
+  display: none !important;
+}
+
+#diagramArea.is-outline-view #diagramSelectionBar,
+#diagramArea.is-outline-view #connectionFormatBar {
+  display: none !important;
+}
+
+/* Outline layout */
+
+#diagramOutlineView {
+  padding: 0.5rem 0;
+}
+
+#diagramOutlineView > p {
+  color: #555;
+  font-size: 0.85rem;
+}
+
+#diagramOutlineTree,
+#diagramOutlineTree ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+#diagramOutlineTree ul {
+  padding-left: 1.25rem;
+  margin-left: 0.55rem;
+  border-left: 1px solid #d9e2ed;
+}
+
+#diagramOutlineTree > li {
+  margin-bottom: 0.3rem;
+}
+
+#diagramOutlineTree details > summary,
+#diagramOutlineTree .diagram-outline-leaf {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid #e6ecf2;
+}
+
+#diagramOutlineTree details > summary {
+  cursor: pointer;
+}
+
+#diagramOutlineTree details > summary:hover {
+  background: #eef5fc;
+}
+
+#diagramOutlineTree .diagram-outline-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+/* Driver level labels */
+
+#diagramOutlineTree .diagram-outline-type {
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #222;
+  white-space: nowrap;
+}
+
+#diagramOutlineTree .diagram-outline-aim {
+  background: #fbdede;
+}
+
+#diagramOutlineTree .diagram-outline-primary {
+  background: #ffd792;
+}
+
+#diagramOutlineTree .diagram-outline-secondary {
+  background: #fff99b;
+}
+
+#diagramOutlineTree .diagram-outline-change {
+  background: #a8f99d;
+}
+
+#diagramOutlineTree .diagram-outline-swatch {
+  width: 11px;
+  height: 11px;
+  border: 1px solid #999;
+  border-radius: 3px;
+}
+
+#diagramOutlineTree .diagram-outline-text {
+  flex: 1 1 180px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#diagramOutlineTree .diagram-outline-extra {
+  color: #555;
+  font-size: 0.72rem;
+}
+
+/* Measures */
+
+#diagramOutlineTree .diagram-outline-measure {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+

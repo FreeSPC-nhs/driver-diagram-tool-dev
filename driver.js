@@ -3739,7 +3739,12 @@ function updateAllViews() {
 
   refreshParentOptions();
 
-  renderDiagram();
+  if (diagramViewMode === "outline") {
+    renderDiagramOutline();
+  } else {
+    renderDiagram();
+  }
+
   refreshColorSelect();
   renderColorOptionsList();
   renderLegend();
@@ -5852,7 +5857,281 @@ diagramAppearance.connectionStyle =
   });
 }
 
+
+/* B4.4a.1 — Read-only Outline view (same diagram data). */
+
+var diagramViewMode = "diagram";
+var diagramOutlineOpenById = Object.create(null);
+
+function renderDiagramOutline() {
+  var host = document.getElementById("diagramOutlineTree");
+  if (!host) return;
+
+  host.replaceChildren();
+
+  var lookup = Object.create(null);
+  var children = Object.create(null);
+  var visited = Object.create(null);
+
+  nodes.forEach(function (node) {
+    lookup[String(node.id)] = node;
+    children[String(node.id)] = [];
+  });
+
+  nodes.forEach(function (node) {
+    var parentId = String(node.parentId || "");
+
+    if (
+      parentId &&
+      lookup[parentId] &&
+      parentId !== String(node.id)
+    ) {
+      children[parentId].push(node);
+    }
+  });
+
+  function addNode(node, list) {
+    var id = String(node.id);
+    if (visited[id]) return;
+    visited[id] = true;
+
+    var li = document.createElement("li");
+    var row = document.createElement("span");
+    row.className = "diagram-outline-row";
+
+    var tag = document.createElement("span");
+    tag.className =
+      "diagram-outline-type diagram-outline-" + node.level;
+
+    tag.textContent = ({
+      aim: "Aim",
+      primary: "Primary",
+      secondary: "Secondary",
+      change: "Change idea"
+    })[node.level] || node.level;
+
+    row.appendChild(tag);
+
+    if (node.color) {
+      var swatch = document.createElement("span");
+      swatch.className = "diagram-outline-swatch";
+      swatch.style.backgroundColor = node.color;
+      swatch.setAttribute(
+        "aria-label", "Element colour " + node.color
+      );
+      row.appendChild(swatch);
+    }
+
+    var label = document.createElement("span");
+    label.className = "diagram-outline-text";
+    label.textContent = node.text || "(Untitled element)";
+    row.appendChild(label);
+
+    // Show additional relationships without duplicating nodes.
+    var extraCount = connections.filter(function (link) {
+      return String(link.toId) === id &&
+        String(link.fromId) !== String(node.parentId || "");
+    }).length;
+
+    if (extraCount) {
+      var extra = document.createElement("span");
+      extra.className = "diagram-outline-extra";
+      extra.textContent =
+        "+" + extraCount + " extra connection" +
+        (extraCount === 1 ? "" : "s");
+      row.appendChild(extra);
+    }
+
+    var childNodes = children[id] || [];
+    var measures = Array.isArray(node.measures)
+      ? node.measures : [];
+
+    if (childNodes.length || measures.length) {
+      var details = document.createElement("details");
+
+      details.open =
+        Object.prototype.hasOwnProperty.call(
+          diagramOutlineOpenById, id
+        )
+          ? diagramOutlineOpenById[id]
+          : node.level === "aim";
+
+      var summary = document.createElement("summary");
+      summary.appendChild(row);
+      details.appendChild(summary);
+
+      var childList = document.createElement("ul");
+
+      // Measures stay with their own element and keep their order.
+      measures.forEach(function (measure) {
+        var measureRow = document.createElement("li");
+        measureRow.className = "diagram-outline-measure";
+
+        var meta = getMeasureTypeMeta(
+          measure && measure.type
+        );
+
+        var bullet = document.createElement("span");
+        bullet.textContent = "●";
+        bullet.style.color = meta.color;
+        bullet.setAttribute("aria-label", meta.label);
+        measureRow.appendChild(bullet);
+
+        var text = document.createElement("span");
+        text.textContent = typeof measure === "string"
+          ? measure
+          : (measure && measure.text) || "(Untitled measure)";
+
+        measureRow.appendChild(text);
+        childList.appendChild(measureRow);
+      });
+
+      childNodes.forEach(function (child) {
+        addNode(child, childList);
+      });
+
+      details.appendChild(childList);
+
+      details.addEventListener("toggle", function () {
+        diagramOutlineOpenById[id] = details.open;
+      });
+
+      li.appendChild(details);
+
+    } else {
+      var leaf = document.createElement("div");
+      leaf.className = "diagram-outline-leaf";
+      leaf.appendChild(row);
+      li.appendChild(leaf);
+    }
+
+    list.appendChild(li);
+  }
+
+  // Start with aims and any unconnected elements.
+  nodes.forEach(function (node) {
+    var parentId = String(node.parentId || "");
+
+    if (
+      !parentId ||
+      !lookup[parentId] ||
+      parentId === String(node.id)
+    ) {
+      addNode(node, host);
+    }
+  });
+
+  // Include anything remaining from unusual older diagrams.
+  nodes.forEach(function (node) {
+    addNode(node, host);
+  });
+}
+
+function switchDiagramView(view) {
+  if (view !== "diagram" && view !== "outline") return;
+  if (view === diagramViewMode) return;
+
+  // Do not interrupt an unfinished edit.
+  if (
+    activeDiagramTextEdit ||
+    document.querySelector(
+      "dialog[open], .diagram-measure-editor-overlay"
+    )
+  ) {
+    alert(
+      "Please save or cancel the current edit before switching views."
+    );
+    return;
+  }
+
+  var exportArea = document.getElementById("exportArea");
+  var outline = document.getElementById("diagramOutlineView");
+  var area = document.getElementById("diagramArea");
+  var diagramButton = document.getElementById("btnViewDiagram");
+  var outlineButton = document.getElementById("btnViewOutline");
+
+  if (!exportArea || !outline) return;
+
+  closeNodeContextMenu();
+  closeMeasureContextMenu();
+
+  diagramViewMode = view;
+
+  // Clear visual selections without changing the diagram.
+  selectedDiagramNodeId = null;
+  selectedDiagramMeasure = null;
+  selectedDiagramConnection = null;
+
+  exportArea.hidden = view === "outline";
+  outline.hidden = view !== "outline";
+
+  if (area) {
+    area.classList.toggle(
+      "is-outline-view", view === "outline"
+    );
+  }
+
+  if (diagramButton) {
+    diagramButton.setAttribute(
+      "aria-pressed", view === "diagram"
+    );
+  }
+
+  if (outlineButton) {
+    outlineButton.setAttribute(
+      "aria-pressed", view === "outline"
+    );
+  }
+
+  updateDiagramSelectionBar();
+  updateDiagramConnectionBar();
+
+  if (view === "outline") {
+    renderDiagramOutline();
+
+  } else {
+    // Recalculate dimensions now the diagram is visible.
+    measuredBoxHeightsById = {};
+    measuredItemHeightsById = {};
+    suppressAutosizeRelayout = false;
+
+    renderDiagram();
+  }
+}
+
+function initialiseDiagramViewSwitch() {
+  var diagramButton = document.getElementById("btnViewDiagram");
+  var outlineButton = document.getElementById("btnViewOutline");
+  var exportArea = document.getElementById("exportArea");
+  var outline = document.getElementById("diagramOutlineView");
+  var area = document.getElementById("diagramArea");
+
+  if (
+    !diagramButton || !outlineButton ||
+    !exportArea || !outline
+  ) return;
+
+  // Saved HTML copies also reopen in Diagram view.
+  diagramViewMode = "diagram";
+  exportArea.hidden = false;
+  outline.hidden = true;
+
+  if (area) area.classList.remove("is-outline-view");
+
+  diagramButton.setAttribute("aria-pressed", "true");
+  outlineButton.setAttribute("aria-pressed", "false");
+
+  diagramButton.addEventListener("click", function () {
+    switchDiagramView("diagram");
+  });
+
+  outlineButton.addEventListener("click", function () {
+    switchDiagramView("outline");
+  });
+}
+
 /* ---------- View toggles & export ---------- */
+
 
 function toggleControlsVisibility() {
   var panel = document.getElementById("controlsPanel");
@@ -5885,6 +6164,22 @@ function toggleControlsVisibility() {
 // so html2canvas / html2pdf capture lines reliably.
 
 function withSvgImageOverlay(runCapture) {
+
+  // B4.4a.1: Always export the visual diagram.
+  if (diagramViewMode === "outline") {
+    switchDiagramView("diagram");
+
+    return new Promise(function (resolve, reject) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          withSvgImageOverlay(runCapture).then(
+            resolve, reject
+          );
+        });
+      });
+    });
+  }
+
   var exportArea = document.getElementById("exportArea");
   var svg = document.getElementById("diagramConnections");
   var canvasDiv = document.getElementById("diagramCanvas");
@@ -7421,6 +7716,9 @@ recordDiagramHistory();
 
   // Set up collapsible sections in controls panel
   setupCollapsibleSections();
+
+  // B4.4a.1: Set up view buttons before loading diagram data.
+  initialiseDiagramViewSwitch();
 
 /*
   A portable HTML file contains embedded project data.

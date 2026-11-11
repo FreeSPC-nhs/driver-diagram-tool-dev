@@ -5355,10 +5355,95 @@ function validateDiagramCsvBeforeImport(results) {
     }
   });
 
+
+  // B4.1d.2a — Detect self-parenting and circular connections.
+  var nodeIds = Object.keys(identifiers);
+  var incomingCount = Object.create(null);
+  var childrenByParent = Object.create(null);
+  var seenLinks = Object.create(null);
+
+  nodeIds.forEach(function (id) {
+    incomingCount[id] = 0;
+    childrenByParent[id] = [];
+  });
+
+  rows.forEach(function (row, index) {
+    if (!row || typeof row !== "object" ||
+        Array.isArray(row)) return;
+
+    var childId = String(
+      row.id == null ? "" : row.id
+    ).trim();
+
+    if (!identifiers[childId]) return;
+
+    var mainParent = String(
+      row.parent_id == null ? "" : row.parent_id
+    ).trim();
+
+    var extraParents = String(
+      row.extra_parents == null ? "" : row.extra_parents
+    ).split(/[;,]/).map(function (value) {
+      return value.trim();
+    }).filter(Boolean);
+
+    var parents = (mainParent ? [mainParent] : [])
+      .concat(extraParents);
+
+    parents.forEach(function (parentId) {
+      // Missing parents were already reported above.
+      if (!identifiers[parentId]) return;
+
+      if (parentId === childId) {
+        errors.push(
+          "Row " + (index + 2) + ": element " +
+          childId + " cannot be its own parent."
+        );
+        return;
+      }
+
+      // Ignore duplicate links when building the graph.
+      var linkKey = JSON.stringify([parentId, childId]);
+      if (seenLinks[linkKey]) return;
+
+      seenLinks[linkKey] = true;
+      childrenByParent[parentId].push(childId);
+      incomingCount[childId]++;
+    });
+  });
+
+  // Process elements with no incoming parent connections.
+  // Any unprocessed elements indicate a circular relationship.
+  var queue = nodeIds.filter(function (id) {
+    return incomingCount[id] === 0;
+  });
+
+  var processed = 0;
+
+  for (var i = 0; i < queue.length; i++) {
+    var id = queue[i];
+    processed++;
+
+    childrenByParent[id].forEach(function (childId) {
+      incomingCount[childId]--;
+
+      if (incomingCount[childId] === 0) {
+        queue.push(childId);
+      }
+    });
+  }
+
+  if (processed !== nodeIds.length) {
+    errors.push(
+      "The CSV contains a circular connection between elements."
+    );
+  }
+
   return errors;
 }
 
 function uploadCsv(file) {
+
 
   if (!file) return;
 

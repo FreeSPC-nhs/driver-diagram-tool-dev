@@ -634,7 +634,167 @@ tests.push(
 
 );
 
+
+/* B4.2d.2 — Measure reordering regression tests. */
+
+tests.push(
+
+  ["Measure reordering preserves content and Undo/Redo", async w => {
+    const node = w.nodes.find(n => n.id === "4");
+
+    node.measures = [
+      {type:"outcome", text:"Measure A"},
+      {type:"process", text:"Measure B"},
+      {type:"balancing", text:"Measure C"}
+    ];
+
+    w.updateAllViews();
+
+    const historyBefore = w.diagramHistoryIndex;
+
+    const moved = w.reorderMeasuresWithinNode(
+      "4", 0, 2, true
+    );
+
+    check(moved === true, "Measure was not moved");
+
+    function measureOrder() {
+      return w.nodes.find(n => n.id === "4")
+        .measures.map(m => m.text).join(",");
+    }
+
+    check(measureOrder() ===
+      "Measure B,Measure C,Measure A",
+      "Measure order incorrect");
+
+    check(w.nodes.find(n => n.id === "4")
+      .measures[2].type === "outcome",
+      "Measure classification was lost");
+
+    check(w.diagramHistoryIndex === historyBefore + 1,
+      "Reordering should create one Undo step");
+
+    const saved = w.getPortableProjectData();
+
+    check(saved.nodes.find(n => n.id === "4")
+      .measures[2].text === "Measure A",
+      "Saved data does not preserve measure order");
+
+    w.undoDiagramChange();
+
+    check(measureOrder() ===
+      "Measure A,Measure B,Measure C",
+      "Undo did not restore the original order");
+
+    w.redoDiagramChange();
+
+    check(measureOrder() ===
+      "Measure B,Measure C,Measure A",
+      "Redo did not restore the new order");
+  }],
+
+  ["Invalid or unchanged measure moves do nothing", async w => {
+    const node = w.nodes.find(n => n.id === "4");
+
+    node.measures = [
+      {type:"outcome", text:"Measure A"},
+      {type:"process", text:"Measure B"}
+    ];
+
+    w.updateAllViews();
+
+    const before = w.captureDiagramHistoryState();
+    const historyBefore = w.diagramHistoryIndex;
+
+    check(
+      w.reorderMeasuresWithinNode("4", 0, 0, false) === false,
+      "Unchanged move was accepted"
+    );
+
+    check(
+      w.reorderMeasuresWithinNode("4", 0, 99, true) === false,
+      "Invalid target was accepted"
+    );
+
+    check(w.captureDiagramHistoryState() === before,
+      "Measures changed unexpectedly");
+
+    check(w.diagramHistoryIndex === historyBefore,
+      "Unchanged move added an Undo entry");
+  }]
+
+);
+
+
+/* B4.1d.2a — Circular CSV relationship tests. */
+
+tests.push(
+
+  ["CSV self-parenting is rejected safely", async w => {
+    const before = w.captureDiagramHistoryState();
+
+    const invalidCsv = [
+      "id,level,parent_id,text",
+      "1,aim,,Improve care",
+      "2,primary,2,Self-linked driver"
+    ].join("\n");
+
+    const originalAlert = w.alert;
+    let message = "";
+
+    try {
+      w.alert = text => { message = String(text); };
+      w.uploadCsv(invalidCsv);
+    } finally {
+      w.alert = originalAlert;
+    }
+
+    check(message.includes("cannot be its own parent"),
+      "Self-parenting was not identified");
+
+    check(message.includes("CSV import cancelled"),
+      "The import was not cancelled");
+
+    check(w.captureDiagramHistoryState() === before,
+      "Invalid import changed the open diagram");
+  }],
+
+  ["Circular extra-parent links are rejected", async w => {
+    const before = w.captureDiagramHistoryState();
+
+    const invalidCsv = [
+      "id,level,parent_id,text,extra_parents",
+      "1,aim,,Improve care,",
+      "2,primary,1,Primary driver,",
+      "3,secondary,2,Secondary driver,4",
+      "4,change,3,Change idea,"
+    ].join("\n");
+
+    const originalAlert = w.alert;
+    let message = "";
+
+    try {
+      w.alert = text => { message = String(text); };
+      w.uploadCsv(invalidCsv);
+    } finally {
+      w.alert = originalAlert;
+    }
+
+    check(message.includes("circular connection"),
+      "The circular relationship was not identified");
+
+    check(message.includes("CSV import cancelled"),
+      "The circular import was not cancelled");
+
+    check(w.captureDiagramHistoryState() === before,
+      "Circular import changed the open diagram");
+  }]
+
+);
+
 // Run all tests in sequence.
+
+
 
 
 runButton.addEventListener("click", async function () {

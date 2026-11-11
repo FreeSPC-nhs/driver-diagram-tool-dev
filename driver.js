@@ -5439,10 +5439,148 @@ function validateDiagramCsvBeforeImport(results) {
     );
   }
 
+
+  // Check the contents of optional JSON fields as well.
+  validateDiagramCsvStructuredFields(rows, errors);
+
   return errors;
 }
 
+/* B4.1d.2b — Validate structured CSV field contents. */
+
+function validateDiagramCsvStructuredFields(rows, errors) {
+  rows.forEach(function (row, index) {
+    if (!row || typeof row !== "object" ||
+        Array.isArray(row)) return;
+
+    var rowNumber = index + 2;
+
+    function getArray(field) {
+      var raw = row[field];
+
+      // Optional columns are absent in older CSV files.
+      if (raw == null || String(raw).trim() === "") {
+        return null;
+      }
+
+      try {
+        var value = JSON.parse(String(raw));
+        return Array.isArray(value) ? value : null;
+      } catch (e) {
+        // The existing validator already reports invalid JSON.
+        return null;
+      }
+    }
+
+    // Validate individual measures.
+    var measures = getArray("measures_json");
+
+    if (measures) {
+      measures.forEach(function (measure, i) {
+        var where = "Row " + rowNumber +
+          ": measures_json entry " + (i + 1);
+
+        if (!measure || typeof measure !== "object" ||
+            Array.isArray(measure)) {
+          errors.push(where + " must be a measure object.");
+          return;
+        }
+
+        if (typeof measure.text !== "string" ||
+            !measure.text.trim()) {
+          errors.push(where + " needs non-empty text.");
+        }
+
+        // Missing type is allowed for older files.
+        var type = measure.type;
+
+        if (type != null && type !== "" &&
+            (typeof type !== "string" ||
+            ["outcome", "process", "balancing", "none"]
+              .indexOf(type.trim().toLowerCase()) === -1)) {
+          errors.push(where + " has an invalid measure type.");
+        }
+      });
+    }
+
+    // Validate named colours in the shared palette.
+    var palette = getArray("palette_json");
+
+    if (palette) {
+      palette.forEach(function (option, i) {
+        var where = "Row " + rowNumber +
+          ": palette_json entry " + (i + 1);
+
+        if (!option || typeof option !== "object" ||
+            Array.isArray(option)) {
+          errors.push(where + " must be a colour object.");
+          return;
+        }
+
+        if (typeof option.label !== "string" ||
+            !option.label.trim()) {
+          errors.push(where + " needs a colour name.");
+        }
+
+        if (typeof option.value !== "string" ||
+            !/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(
+              option.value.trim())) {
+          errors.push(where + " needs a valid hex colour.");
+        }
+      });
+    }
+
+    // Validate individual connection styles.
+    var styles = getArray("connection_styles_json");
+
+    if (styles) {
+      var mainParent = String(
+        row.parent_id == null ? "" : row.parent_id
+      ).trim();
+
+      var allowedParents =
+        (mainParent ? [mainParent] : []).concat(
+          String(
+            row.extra_parents == null
+              ? "" : row.extra_parents
+          ).split(/[;,]/).map(function (id) {
+            return id.trim();
+          }).filter(Boolean)
+        );
+
+      styles.forEach(function (entry, i) {
+        var where = "Row " + rowNumber +
+          ": connection_styles_json entry " + (i + 1);
+
+        if (!entry || typeof entry !== "object" ||
+            Array.isArray(entry)) {
+          errors.push(where + " must be a connection object.");
+          return;
+        }
+
+        var fromId = String(
+          entry.fromId == null ? "" : entry.fromId
+        ).trim();
+
+        if (!fromId ||
+            allowedParents.indexOf(fromId) === -1) {
+          errors.push(
+            where +
+            " references a parent not listed for this element."
+          );
+        }
+
+        if (["straight", "orthogonal", "bezier"]
+            .indexOf(entry.style) === -1) {
+          errors.push(where + " has an invalid line style.");
+        }
+      });
+    }
+  });
+}
+
 function uploadCsv(file) {
+
 
 
   if (!file) return;

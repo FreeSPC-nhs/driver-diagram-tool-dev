@@ -1953,6 +1953,11 @@ if (activeDiagramTextEdit &&
   inlineInput.rows = 3;
   inlineInput.value = activeDiagramTextEdit.draft;
 
+  if (activeDiagramTextEdit.isNew) {
+    inlineInput.placeholder =
+      "Enter " + getLevelLabel(node.level) + " text";
+  }
+
   inlineInput.setAttribute(
     "aria-label",
     "Edit " + getLevelLabel(node.level) + " text"
@@ -3290,6 +3295,9 @@ function initialiseDiagramHistory() {
 function recordDiagramHistory() {
   if (!diagramHistoryReady || diagramHistoryRestoring) return;
 
+  // New boxes are drafts until confirmed with the tick.
+  if (activeDiagramTextEdit &&
+      activeDiagramTextEdit.isNew) return;
   var snapshot = captureDiagramHistoryState();
 
   // Ignore redraws and actions that did not change the diagram.
@@ -3707,10 +3715,35 @@ function saveDiagramInlineText() {
   updateAllViews();
 }
 
+
 function cancelDiagramInlineText() {
   if (!activeDiagramTextEdit) return;
 
+  var editing = activeDiagramTextEdit;
   activeDiagramTextEdit = null;
+
+  if (editing.isNew) {
+    // Discard the unfinished box.
+    nodes = nodes.filter(function (n) {
+      return n.id !== editing.id;
+    });
+
+    // Remove its automatic connection.
+    connections = connections.filter(function (c) {
+      return c.fromId !== editing.id &&
+             c.toId !== editing.id;
+    });
+
+    // Restore the identifier counter.
+    nextId = editing.previousNextId;
+
+    // Return selection to the parent box.
+    selectedDiagramNodeId = editing.parentId;
+
+    delete measuredBoxHeightsById[editing.id];
+    delete measuredItemHeightsById[editing.id];
+  }
+
   updateAllViews();
 }
 
@@ -4027,37 +4060,78 @@ function handleConnectionButtonClick(nodeId) {
 
 
 
+
 function addChildForNode(nodeId) {
+  // Finish an existing edit before starting another box.
+  if (activeDiagramTextEdit) return;
+  if (document.querySelector(
+    "dialog[open], .diagram-measure-editor-overlay"
+  )) return;
+
   var refNode = nodes.find(function (n) {
     return n.id === nodeId;
   });
   if (!refNode) return;
 
   var nextLevel = getNextLevel(refNode.level);
-  if (!nextLevel) {
-    // No further level; keep same level for extra children
-    nextLevel = refNode.level;
-  }
+  if (!nextLevel) return;
 
-  var defaultPrompt =
-    "Enter text for new " + getLevelLabel(nextLevel) + " (child)";
-  var text = window.prompt(defaultPrompt, "");
-  if (!text) return;
+  var previousNextId = nextId;
 
   var newNode = createNode({
     level: nextLevel,
-    text: text.trim(),
+    text: "",
     parentId: refNode.id,
-    color: refNode.color // inherit colour
+    color: refNode.color
   });
 
-    insertAfterLastSibling(nodes, newNode);
+  insertAfterLastSibling(nodes, newNode);
 
-  // Record the connection parent -> child
-  connections.push({ fromId: refNode.id, toId: newNode.id });
+  // Automatically connect the new box to its parent.
+  connections.push({
+    fromId: refNode.id,
+    toId: newNode.id
+  });
 
-  updateAllViews();
+  clearSelectedDiagramMeasure();
+  closeMeasureContextMenu();
+  clearDiagramConnectionSelection();
 
+  selectedDiagramNodeId = newNode.id;
+
+  // Mark the new box as an unfinished draft.
+  activeDiagramTextEdit = {
+    id: newNode.id,
+    parentId: refNode.id,
+    previousNextId: previousNextId,
+    draft: "",
+    isNew: true
+  };
+
+  // Display it immediately without adding Undo history.
+  renderDiagram();
+  updateDiagramSelectionBar();
+
+  function focusNewEditor() {
+    if (!activeDiagramTextEdit ||
+        activeDiagramTextEdit.id !== newNode.id) return;
+
+    var input = document.getElementById(
+      "diagramInlineText"
+    );
+
+    if (input) input.focus();
+  }
+
+  focusNewEditor();
+
+  // Auto-sizing may cause one additional render.
+  // Return focus to the new text field afterwards.
+  if (window.requestAnimationFrame) {
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(focusNewEditor);
+    });
+  }
 }
 
 function ensureDefaultAim() {
@@ -4480,8 +4554,13 @@ function getPortableFilename() {
   Creates and downloads the portable HTML file.
 */
 function downloadPortableHtml() {
-  if (!nodes.length) {
-    alert("There is no driver diagram to save.");
+  if (activeDiagramTextEdit &&
+      activeDiagramTextEdit.isNew) {
+    alert("Save or cancel the new box before saving your diagram.");
+    return;
+  }
+
+  if (!nodes.length) {    alert("There is no driver diagram to save.");
     return;
   }
 
@@ -4691,6 +4770,12 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
 /* ---------- CSV import / export ---------- */
 
 function downloadCsv() {
+  if (activeDiagramTextEdit &&
+      activeDiagramTextEdit.isNew) {
+    alert("Save or cancel the new box before downloading a CSV backup.");
+    return;
+  }
+
   if (nodes.length === 0) {
     alert("No items to export yet.");
     return;

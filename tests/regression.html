@@ -725,7 +725,202 @@ tests.push(
 
 );
 
+
+/* B4.1d.2a — Circular CSV relationship tests. */
+
+tests.push(
+
+  ["CSV self-parenting is rejected safely", async w => {
+    const before = w.captureDiagramHistoryState();
+
+    const invalidCsv = [
+      "id,level,parent_id,text",
+      "1,aim,,Improve care",
+      "2,primary,2,Self-linked driver"
+    ].join("\n");
+
+    const originalAlert = w.alert;
+    let message = "";
+
+    try {
+      w.alert = text => { message = String(text); };
+      w.uploadCsv(invalidCsv);
+    } finally {
+      w.alert = originalAlert;
+    }
+
+    check(message.includes("cannot be its own parent"),
+      "Self-parenting was not identified");
+
+    check(message.includes("CSV import cancelled"),
+      "The import was not cancelled");
+
+    check(w.captureDiagramHistoryState() === before,
+      "Invalid import changed the open diagram");
+  }],
+
+  ["Circular extra-parent links are rejected", async w => {
+    const before = w.captureDiagramHistoryState();
+
+    const invalidCsv = [
+      "id,level,parent_id,text,extra_parents",
+      "1,aim,,Improve care,",
+      "2,primary,1,Primary driver,",
+      "3,secondary,2,Secondary driver,4",
+      "4,change,3,Change idea,"
+    ].join("\n");
+
+    const originalAlert = w.alert;
+    let message = "";
+
+    try {
+      w.alert = text => { message = String(text); };
+      w.uploadCsv(invalidCsv);
+    } finally {
+      w.alert = originalAlert;
+    }
+
+    check(message.includes("circular connection"),
+      "The circular relationship was not identified");
+
+    check(message.includes("CSV import cancelled"),
+      "The circular import was not cancelled");
+
+    check(w.captureDiagramHistoryState() === before,
+      "Circular import changed the open diagram");
+  }]
+
+);
+
+
+/* B4.1d.2b — Invalid structured CSV data tests. */
+
+function expectCsvStructureRejected(w, changedRow, expected) {
+  var base = {
+    id: "2",
+    level: "primary",
+    parent_id: "1",
+    text: "Primary driver",
+    extra_parents: "",
+    measures_json: "[]",
+    palette_json: "[]",
+    connection_styles_json: "[]"
+  };
+
+  var aim = Object.assign({}, base, {
+    id: "1",
+    level: "aim",
+    parent_id: "",
+    text: "Improve care"
+  });
+
+  var driver = Object.assign({}, base, changedRow);
+
+  var csv = w.Papa.unparse([aim, driver]);
+  var before = w.captureDiagramHistoryState();
+
+  var originalAlert = w.alert;
+  var message = "";
+
+  try {
+    w.alert = function (text) {
+      message = String(text);
+    };
+
+    w.uploadCsv(csv);
+  } finally {
+    w.alert = originalAlert;
+  }
+
+  check(message.includes("CSV import cancelled"),
+    "Invalid CSV was not rejected");
+
+  check(message.includes(expected),
+    "Expected validation message was missing: " + expected);
+
+  check(w.captureDiagramHistoryState() === before,
+    "Rejected CSV changed the existing diagram");
+}
+
+tests.push(
+
+  ["CSV rejects malformed measure entries", async w => {
+    expectCsvStructureRejected(
+      w,
+      { measures_json: "[null]" },
+      "measure object"
+    );
+
+    expectCsvStructureRejected(
+      w,
+      {
+        measures_json: JSON.stringify([
+          { type: "outcome", text: "" }
+        ])
+      },
+      "non-empty text"
+    );
+  }],
+
+  ["CSV rejects unknown measure types", async w => {
+    expectCsvStructureRejected(
+      w,
+      {
+        measures_json: JSON.stringify([
+          { type: "unknown", text: "Measure A" }
+        ])
+      },
+      "invalid measure type"
+    );
+  }],
+
+  ["CSV rejects invalid palette colours", async w => {
+    expectCsvStructureRejected(
+      w,
+      {
+        palette_json: JSON.stringify([
+          { label: "New colour", value: "not-a-colour" }
+        ])
+      },
+      "valid hex colour"
+    );
+
+    expectCsvStructureRejected(
+      w,
+      { palette_json: "[null]" },
+      "colour object"
+    );
+  }],
+
+  ["CSV rejects invalid connection styles", async w => {
+    // A connection to parent 1 exists, but the style is invalid.
+    expectCsvStructureRejected(
+      w,
+      {
+        connection_styles_json: JSON.stringify([
+          { fromId: "1", style: "zigzag" }
+        ])
+      },
+      "invalid line style"
+    );
+
+    // The style refers to a connection that does not exist.
+    expectCsvStructureRejected(
+      w,
+      {
+        connection_styles_json: JSON.stringify([
+          { fromId: "99", style: "straight" }
+        ])
+      },
+      "parent not listed"
+    );
+  }]
+
+);
+
 // Run all tests in sequence.
+
+
 
 
 

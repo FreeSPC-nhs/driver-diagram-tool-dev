@@ -1955,7 +1955,42 @@ pencilBtn.addEventListener("click", function (e) {
   editNode(node.id);
 });
 
+
 box.appendChild(pencilBtn);
+
+// B4.2c: Contextual delete button for the selected element.
+var deleteBtn = document.createElement("button");
+deleteBtn.type = "button";
+deleteBtn.className = "diagram-delete-button";
+deleteBtn.title = "Delete element";
+deleteBtn.setAttribute(
+  "aria-label",
+  "Delete " + getLevelLabel(node.level) + ": " + node.text
+);
+
+deleteBtn.innerHTML =
+  '<svg viewBox="0 0 24 24" width="15" height="15" ' +
+  'fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" ' +
+  'aria-hidden="true" focusable="false">' +
+  '<path d="M3 6h18"/>' +
+  '<path d="M8 6V4h8v2"/>' +
+  '<path d="M19 6l-1 14H6L5 6"/>' +
+  '<path d="M10 10v7M14 10v7"/>' +
+  '</svg>';
+
+deleteBtn.addEventListener("click", function (event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  // Never delete a box while text editing is in progress.
+  if (activeDiagramTextEdit) return;
+
+  // Reuse the existing confirmation and dependent-item cleanup.
+  deleteNode(node.id);
+});
+
+box.appendChild(deleteBtn);
 
 
 /* B1.2: Display text or an inline editor */

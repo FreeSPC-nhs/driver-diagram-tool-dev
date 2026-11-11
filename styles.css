@@ -1527,3 +1527,50 @@ dialog.quick-colour-dialog::backdrop {
   display: none !important;
 }
 
+
+/* B4.2c — Delete icon on selected diagram elements */
+
+.diagram-delete-button {
+  position: absolute;
+  top: -12px;
+  right: 8px;
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  width: 26px;
+  height: 26px;
+  padding: 0;
+
+  border: 1px solid #b42318;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #b42318;
+
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  z-index: 5;
+  cursor: pointer;
+}
+
+/* Only show the dustbin when a box is selected. */
+
+.diagram-node.diagram-selected:not(.diagram-text-editing)
+.diagram-delete-button {
+  display: inline-flex;
+}
+
+.diagram-delete-button:hover {
+  background: #fff0ee;
+}
+
+.diagram-delete-button:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+/* Never include deletion controls in PNG/PDF exports. */
+
+.export-clean .diagram-delete-button {
+  display: none !important;
+}

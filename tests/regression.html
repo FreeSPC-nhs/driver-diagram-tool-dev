@@ -918,7 +918,257 @@ tests.push(
 
 );
 
+
+/* B4.4a.2 — Diagram / Outline regression tests. */
+
+/*
+  Temporary test diagram.
+  This does not change saved files or Undo history.
+*/
+async function withTestOutlineDiagram(w, runTest) {
+  const oldNodes = w.nodes;
+  const oldConnections = w.connections;
+  const oldOpenState = w.diagramOutlineOpenById;
+
+  try {
+    w.nodes = [
+      {
+        id: "test-aim",
+        level: "aim",
+        parentId: "",
+        text: "Test improvement aim",
+        color: "#fbdede",
+        measures: []
+      },
+      {
+        id: "test-primary",
+        level: "primary",
+        parentId: "test-aim",
+        text: "Test primary driver",
+        color: "#ffd792",
+        measures: [
+          {type: "outcome", text: "Outcome measure A"},
+          {type: "process", text: "Process measure B"}
+        ]
+      },
+      {
+        id: "test-secondary",
+        level: "secondary",
+        parentId: "test-primary",
+        text: "Test secondary driver",
+        color: "#fff99b",
+        measures: []
+      },
+      {
+        id: "test-change",
+        level: "change",
+        parentId: "test-secondary",
+        text: "Test change idea",
+        color: "#a8f99d",
+        measures: []
+      }
+    ];
+
+    w.connections = [
+      {fromId: "test-aim", toId: "test-primary"},
+      {fromId: "test-primary", toId: "test-secondary"},
+      {fromId: "test-secondary", toId: "test-change"},
+
+      // An additional connection to the change idea.
+      {fromId: "test-aim", toId: "test-change"}
+    ];
+
+    w.diagramOutlineOpenById = Object.create(null);
+    w.renderDiagramOutline();
+
+    await runTest(w);
+
+  } finally {
+    // Restore the original test diagram and UI state.
+    w.nodes = oldNodes;
+    w.connections = oldConnections;
+    w.diagramOutlineOpenById = oldOpenState;
+    w.renderDiagramOutline();
+  }
+}
+
+tests.push(
+
+  ["Diagram / Outline switching preserves data and history",
+    async w => {
+
+      const before = w.captureDiagramHistoryState();
+      const historyBefore = w.diagramHistoryIndex;
+
+      const diagramButton =
+        w.document.getElementById("btnViewDiagram");
+
+      const outlineButton =
+        w.document.getElementById("btnViewOutline");
+
+      const exportArea =
+        w.document.getElementById("exportArea");
+
+      const outline =
+        w.document.getElementById("diagramOutlineView");
+
+      check(diagramButton && outlineButton,
+        "View switch buttons are missing");
+
+      check(exportArea && outline,
+        "A diagram or Outline container is missing");
+
+      w.switchDiagramView("diagram");
+
+      outlineButton.click();
+
+      check(w.diagramViewMode === "outline",
+        "Outline view was not activated");
+
+      check(exportArea.hidden === true,
+        "The visual diagram was not hidden");
+
+      check(outline.hidden === false,
+        "The Outline was not displayed");
+
+      check(
+        !exportArea.contains(outline),
+        "The Outline must remain outside the export area"
+      );
+
+      diagramButton.click();
+
+      check(w.diagramViewMode === "diagram",
+        "Diagram view was not restored");
+
+      check(exportArea.hidden === false,
+        "The diagram is still hidden");
+
+      check(outline.hidden === true,
+        "The Outline is still visible");
+
+      check(w.captureDiagramHistoryState() === before,
+        "Switching views changed diagram data");
+
+      check(w.diagramHistoryIndex === historyBefore,
+        "Switching views added an Undo step");
+    }
+  ],
+
+  ["Outline preserves hierarchy, measures and connections",
+    async w => {
+
+      await withTestOutlineDiagram(w, async () => {
+        const tree =
+          w.document.getElementById("diagramOutlineTree");
+
+        const levels = Array.from(
+          tree.querySelectorAll(".diagram-outline-type")
+        ).map(el => el.textContent.trim());
+
+        check(
+          levels.join(",") ===
+            "Aim,Primary,Secondary,Change idea",
+          "Outline hierarchy is incorrect"
+        );
+
+        check(
+          tree.querySelectorAll(".diagram-outline-type")
+            .length === 4,
+          "An element is missing or duplicated"
+        );
+
+        const measures = Array.from(
+          tree.querySelectorAll(".diagram-outline-measure")
+        ).map(el => el.textContent.trim());
+
+        check(measures.length === 2,
+          "The Outline did not show both measures");
+
+        check(
+          measures[0].includes("Outcome measure A") &&
+          measures[1].includes("Process measure B"),
+          "Measure order was not preserved"
+        );
+
+        check(
+          tree.querySelectorAll(".diagram-outline-swatch")
+            .length === 4,
+          "Element colours were not represented"
+        );
+
+        const extra = tree.querySelectorAll(
+          ".diagram-outline-extra"
+        );
+
+        check(
+          extra.length === 1 &&
+          extra[0].textContent.includes(
+            "1 extra connection"
+          ),
+          "The additional connection was not shown correctly"
+        );
+      });
+    }
+  ],
+
+  ["Outline keeps expanded and collapsed state",
+    async w => {
+
+      await withTestOutlineDiagram(w, async () => {
+        const tree =
+          w.document.getElementById("diagramOutlineTree");
+
+        let aimDetails =
+          tree.firstElementChild.querySelector(
+            ":scope > details"
+          );
+
+        check(aimDetails && aimDetails.open,
+          "The Aim branch should start expanded");
+
+        // Collapse the Aim branch.
+        aimDetails.open = false;
+
+        // Allow the browser's toggle event to run.
+        await new Promise(resolve =>
+          w.setTimeout(resolve, 30)
+        );
+
+        w.renderDiagramOutline();
+
+        aimDetails =
+          tree.firstElementChild.querySelector(
+            ":scope > details"
+          );
+
+        check(aimDetails.open === false,
+          "The Aim branch reopened after redraw");
+
+        // Expand it again.
+        aimDetails.open = true;
+
+        await new Promise(resolve =>
+          w.setTimeout(resolve, 30)
+        );
+
+        w.renderDiagramOutline();
+
+        aimDetails =
+          tree.firstElementChild.querySelector(
+            ":scope > details"
+          );
+
+        check(aimDetails.open === true,
+          "The Aim branch did not remain expanded");
+      });
+    }
+  ]
+
+);
+
 // Run all tests in sequence.
+
 
 
 

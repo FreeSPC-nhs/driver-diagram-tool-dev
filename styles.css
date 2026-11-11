@@ -1447,3 +1447,83 @@ dialog.quick-colour-dialog::backdrop {
 }
 
 
+/* B4.2b — Colour picker inside the inline text editor */
+
+.diagram-node .diagram-inline-actions
+.diagram-inline-colour-button {
+  margin-right: auto;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  color: #111827;
+  font-size: 17px;
+}
+
+.diagram-node .diagram-inline-actions
+.diagram-inline-colour-button:hover {
+  background: #f1f5f9;
+}
+
+/* Floating palette menu */
+
+.diagram-inline-colour-menu {
+  position: fixed;
+  z-index: 16000;
+  box-sizing: border-box;
+  width: min(250px, calc(100vw - 16px));
+  max-height: 65vh;
+  overflow-y: auto;
+  padding: 8px;
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+.diagram-inline-colour-heading {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 8px 9px;
+}
+
+.diagram-inline-colour-choice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px;
+  background: transparent;
+  color: #111827;
+  border: 0;
+  border-radius: 5px;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.diagram-inline-colour-choice:hover,
+.diagram-inline-colour-choice:focus-visible {
+  background: #eef5fc;
+}
+
+.diagram-inline-colour-choice:focus-visible {
+  outline: 2px solid #005eb8;
+  outline-offset: -2px;
+}
+
+.diagram-inline-colour-swatch {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+}
+
+/* Exclude editing controls from diagrams captured for export. */
+
+.export-clean .diagram-inline-colour-button,
+.export-clean .diagram-inline-colour-menu {
+  display: none !important;
+}
+

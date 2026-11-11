@@ -2037,6 +2037,25 @@ if (activeDiagramTextEdit &&
   inlineFeedback.className = "diagram-inline-feedback";
   inlineFeedback.setAttribute("role", "status");
 
+
+  // B4.2b — Colour picker at the bottom-left of the editor.
+  var inlineColourButton = document.createElement("button");
+  inlineColourButton.type = "button";
+  inlineColourButton.className = "diagram-inline-colour-button";
+  inlineColourButton.textContent = "🎨";
+  inlineColourButton.title = "Change box colour";
+  inlineColourButton.setAttribute(
+    "aria-label", "Choose box colour"
+  );
+  inlineColourButton.setAttribute("aria-haspopup", "true");
+
+  inlineColourButton.addEventListener("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    showInlineColourMenu(node.id, inlineColourButton);
+  });
+
+  inlineActions.appendChild(inlineColourButton);
   inlineActions.appendChild(inlineSave);
   inlineActions.appendChild(inlineCancel);
 
@@ -3704,8 +3723,26 @@ function saveDiagramInlineText() {
     return n.id === id;
   });
 
-  if (node) node.text = nextText;
 
+  if (node) {
+    node.text = nextText;
+
+    // Apply the colour selected during inline editing.
+    if (Object.prototype.hasOwnProperty.call(
+      activeDiagramTextEdit, "pendingColour"
+    )) {
+      node.color = activeDiagramTextEdit.pendingColour;
+
+      // Commit a newly named colour to the shared palette.
+      var option = activeDiagramTextEdit.pendingColourOption;
+
+      if (option && !findColorOptionByValue(option.value)) {
+        colorOptions.push(option);
+      }
+    }
+  }
+
+  dismissInlineColourMenu();
   activeDiagramTextEdit = null;
 
   // Recalculate the box height after editing.
@@ -3718,6 +3755,7 @@ function saveDiagramInlineText() {
 
 function cancelDiagramInlineText() {
   if (!activeDiagramTextEdit) return;
+  dismissInlineColourMenu();
 
   var editing = activeDiagramTextEdit;
   activeDiagramTextEdit = null;
@@ -5339,7 +5377,154 @@ function closeHelpOverlay() {
 }
 
 
+
+/* B4.2b — Colour choices while editing element text. */
+
+var closeInlineColourMenu = null;
+
+function dismissInlineColourMenu() {
+  if (closeInlineColourMenu) closeInlineColourMenu();
+}
+
+function previewInlineColour(nodeId, colour, newOption) {
+  if (!activeDiagramTextEdit ||
+      activeDiagramTextEdit.id !== nodeId) return;
+
+  // Stage the colour until the edit is confirmed.
+  activeDiagramTextEdit.pendingColour = colour;
+  activeDiagramTextEdit.pendingColourOption = newOption || null;
+
+  var field = document.getElementById("diagramInlineText");
+  var box = field && field.closest(".diagram-node");
+  if (!box) return;
+
+  box.style.backgroundColor = colour || "#ffffff";
+  box.style.borderColor = colour ? "#999" : "#d0d7de";
+  box.style.color = colour
+    ? getContrastingTextColor(colour)
+    : "#000000";
+}
+
+function showInlineColourMenu(nodeId, trigger) {
+  if (!activeDiagramTextEdit ||
+      activeDiagramTextEdit.id !== nodeId) return;
+
+  if (closeInlineColourMenu) {
+    dismissInlineColourMenu();
+    return;
+  }
+
+  var menu = document.createElement("div");
+  menu.className = "diagram-inline-colour-menu";
+  menu.setAttribute("role", "group");
+  menu.setAttribute("aria-label", "Choose element colour");
+
+  var heading = document.createElement("div");
+  heading.className = "diagram-inline-colour-heading";
+  heading.textContent = "Box colour";
+  menu.appendChild(heading);
+
+  function addChoice(name, colour, action) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "diagram-inline-colour-choice";
+
+    var swatch = document.createElement("span");
+    swatch.className = "diagram-inline-colour-swatch";
+    swatch.style.backgroundColor = colour || "#ffffff";
+    swatch.setAttribute("aria-hidden", "true");
+
+    var label = document.createElement("span");
+    label.textContent = name;
+
+    button.appendChild(swatch);
+    button.appendChild(label);
+
+    button.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      dismissInlineColourMenu();
+      action();
+    });
+
+    menu.appendChild(button);
+  }
+
+  function chooseColour(value) {
+    previewInlineColour(nodeId, value, null);
+
+    var field = document.getElementById("diagramInlineText");
+    if (field) field.focus();
+  }
+
+  addChoice("No colour", "", function () {
+    chooseColour("");
+  });
+
+  colorOptions.forEach(function (option) {
+    addChoice(option.label, option.value, function () {
+      chooseColour(option.value);
+    });
+  });
+
+  addChoice("+ New colour…", null, function () {
+    openQuickColourDialogForNode(nodeId);
+  });
+
+  document.body.appendChild(menu);
+
+  // Float near the palette button without moving the boxes.
+  var rect = trigger.getBoundingClientRect();
+  var bounds = menu.getBoundingClientRect();
+
+  var left = Math.min(
+    rect.left,
+    window.innerWidth - bounds.width - 8
+  );
+
+  var top = rect.bottom + 6;
+
+  if (top + bounds.height > window.innerHeight - 8) {
+    top = rect.top - bounds.height - 6;
+  }
+
+  menu.style.left = Math.max(8, left) + "px";
+  menu.style.top = Math.max(8, top) + "px";
+
+  function close() {
+    document.removeEventListener("pointerdown", outside, true);
+    menu.remove();
+
+    if (closeInlineColourMenu === close) {
+      closeInlineColourMenu = null;
+    }
+  }
+
+  function outside(event) {
+    if (!menu.contains(event.target) &&
+        event.target !== trigger) {
+      close();
+    }
+  }
+
+  menu.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+      trigger.focus();
+    }
+  });
+
+  document.addEventListener("pointerdown", outside, true);
+  closeInlineColourMenu = close;
+
+  var first = menu.querySelector("button");
+  if (first) first.focus();
+}
+
 function openQuickColourDialogForNode(nodeId) {
+
   var targetNode = nodes.find(function (n) { return n.id === nodeId; });
   if (!targetNode || document.getElementById("quickColourDialog")) return;
 
@@ -5408,13 +5593,43 @@ function openQuickColourDialogForNode(nodeId) {
       return;
     }
 
+
+    if (activeDiagramTextEdit &&
+        activeDiagramTextEdit.id === nodeId) {
+
+      // Stage this named colour until the inline tick is clicked.
+      previewInlineColour(nodeId, colour, {
+        label: label,
+        value: colour
+      });
+
+      dialog.close();
+      return;
+    }
+
+    // Existing right-click behaviour remains unchanged.
     colorOptions.push({ label: label, value: colour });
     currentNode.color = colour;
     updateAllViews();
     dialog.close();
   });
 
-  dialog.addEventListener("close", function () { dialog.remove(); });
+
+  dialog.addEventListener("close", function () {
+    dialog.remove();
+
+    // Return to the text editor if it is still active.
+    if (activeDiagramTextEdit &&
+        activeDiagramTextEdit.id === nodeId) {
+
+      var textField = document.getElementById(
+        "diagramInlineText"
+      );
+
+      if (textField) textField.focus();
+    }
+  });
+
   document.body.appendChild(dialog);
   dialog.showModal();
   nameInput.focus();

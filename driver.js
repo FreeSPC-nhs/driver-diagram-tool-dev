@@ -1825,11 +1825,30 @@ if (diagramAppearance) {
   box.style.fontWeight = diagramAppearance.fontBold ? "700" : "400";
 }
 
-// Apply colour fill if set
-if (node.color) {
-  box.style.backgroundColor = node.color;
+
+/* B4.2b.1 — Preserve staged colours during diagram redraws. */
+
+var displayedNodeColour = node.color || "";
+
+// While editing, use the selected preview colour
+// instead of the previously saved colour.
+if (
+  activeDiagramTextEdit &&
+  activeDiagramTextEdit.id === node.id &&
+  Object.prototype.hasOwnProperty.call(
+    activeDiagramTextEdit, "pendingColour"
+  )
+) {
+  displayedNodeColour =
+    activeDiagramTextEdit.pendingColour || "";
+}
+
+// Apply the colour currently being displayed.
+if (displayedNodeColour) {
+  box.style.backgroundColor = displayedNodeColour;
   box.style.borderColor = "#999";
-  box.style.color = getContrastingTextColor(node.color);
+  box.style.color =
+    getContrastingTextColor(displayedNodeColour);
 } else {
   box.style.backgroundColor = "#ffffff";
   box.style.borderColor = "#d0d7de";
@@ -1853,10 +1872,10 @@ if (prevLevel && level !== "primary") {
     leftBtn.style.left = -(h / 2) + "px";
   }
 
-  if (node.color) {
-    leftBtn.style.backgroundColor = node.color;
-    leftBtn.style.borderColor = node.color;
-    leftBtn.style.color = getContrastingTextColor(node.color);
+  if (displayedNodeColour) {
+  leftBtn.style.backgroundColor = displayedNodeColour;
+  leftBtn.style.borderColor = displayedNodeColour;
+  leftBtn.style.color = getContrastingTextColor(displayedNodeColour);
   } else {
     leftBtn.style.backgroundColor = "#ffffff";
     leftBtn.style.borderColor = "#d0d7de";
@@ -1888,10 +1907,10 @@ if (nextLevel) {
     rightBtn.style.right = -(h2 / 2) + "px";
   }
 
-  if (node.color) {
-    rightBtn.style.backgroundColor = node.color;
-    rightBtn.style.borderColor = node.color;
-    rightBtn.style.color = getContrastingTextColor(node.color);
+  if (displayedNodeColour) {
+  rightBtn.style.backgroundColor = displayedNodeColour;
+  rightBtn.style.borderColor = displayedNodeColour;
+  rightBtn.style.color = getContrastingTextColor(displayedNodeColour);
   } else {
     rightBtn.style.backgroundColor = "#ffffff";
     rightBtn.style.borderColor = "#d0d7de";

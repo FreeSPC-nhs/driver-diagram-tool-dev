@@ -515,7 +515,270 @@ overlay.className = "diagram-measure-editor-overlay";
   overlay.addEventListener("keydown", escHandler);
 }
 
+
+/* B4.2d — Reorder measures within their own element. */
+
+var draggingDiagramMeasure = null;
+var diagramMeasureDropRow = null;
+
+function clearDiagramMeasureDropMarker() {
+  if (diagramMeasureDropRow) {
+    diagramMeasureDropRow.classList.remove(
+      "diagram-measure-drop-before",
+      "diagram-measure-drop-after"
+    );
+    diagramMeasureDropRow = null;
+  }
+}
+
+function reorderMeasuresWithinNode(
+  nodeId, fromIndex, toIndex, placeAfter
+) {
+  var node = nodes.find(function (n) {
+    return n.id === nodeId;
+  });
+
+  if (
+    !node ||
+    !Array.isArray(node.measures) ||
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= node.measures.length ||
+    toIndex >= node.measures.length ||
+    activeDiagramTextEdit ||
+    document.querySelector(
+      "dialog[open], .diagram-measure-editor-overlay"
+    )
+  ) {
+    return false;
+  }
+
+  var measures = node.measures;
+  var previous = measures.slice();
+
+  // Remember which measure was selected, not just its index.
+  var selected =
+    selectedDiagramMeasure &&
+    selectedDiagramMeasure.nodeId === nodeId
+      ? measures[selectedDiagramMeasure.index]
+      : null;
+
+  var target = measures[toIndex];
+  var moved = measures.splice(fromIndex, 1)[0];
+
+  measures.splice(
+    measures.indexOf(target) + (placeAfter ? 1 : 0),
+    0,
+    moved
+  );
+
+  // No history entry for a drag that changed nothing.
+  if (measures.every(function (m, i) {
+    return m === previous[i];
+  })) {
+    return false;
+  }
+
+  // Keep selection attached to the same measure.
+  if (selected) {
+    selectedDiagramMeasure.index =
+      measures.indexOf(selected);
+  }
+
+  closeMeasureContextMenu();
+
+  // A completed move creates one Undo entry.
+  updateAllViews();
+  return true;
+}
+
+function enableMeasureReordering(wrap, node) {
+  if (!Array.isArray(node.measures) ||
+      node.measures.length < 2) return;
+
+  var rows = Array.from(
+    wrap.querySelectorAll(".diagram-measure-row")
+  );
+
+  rows.forEach(function (row, index) {
+    row.draggable = true;
+    row.classList.add("diagram-measure-sortable");
+
+    row.title =
+      "Drag to reorder. Alt + Up/Down also moves this measure.";
+
+    var grip = document.createElement("span");
+    grip.className = "diagram-measure-grip";
+    grip.textContent = "⠿";
+    grip.setAttribute("aria-hidden", "true");
+    row.insertBefore(grip, row.firstChild);
+
+    row.addEventListener("dragstart", function (event) {
+      if (
+        activeDiagramTextEdit ||
+        document.querySelector(
+          "dialog[open], .diagram-measure-editor-overlay"
+        )
+      ) {
+        event.preventDefault();
+        return;
+      }
+
+      draggingDiagramMeasure = {
+        nodeId: node.id,
+        index: index
+      };
+
+      row.classList.add("diagram-measure-dragging");
+      closeMeasureContextMenu();
+      event.stopPropagation();
+
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData(
+          "text/plain",
+          "measure:" + node.id + ":" + index
+        );
+      }
+    });
+
+    row.addEventListener("dragend", function () {
+      draggingDiagramMeasure = null;
+      clearDiagramMeasureDropMarker();
+      row.classList.remove("diagram-measure-dragging");
+    });
+
+    // Keyboard alternative: Alt + Up or Down.
+    row.addEventListener("keydown", function (event) {
+      if (
+        !event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        (
+          event.key !== "ArrowUp" &&
+          event.key !== "ArrowDown"
+        )
+      ) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      var step =
+        event.key === "ArrowUp" ? -1 : 1;
+
+      var nextIndex = index + step;
+
+      if (
+        nextIndex < 0 ||
+        nextIndex >= rows.length
+      ) return;
+
+      if (reorderMeasuresWithinNode(
+        node.id, index, nextIndex, step > 0
+      )) {
+        // Restore focus after rendering recreates the rows.
+        document.querySelectorAll(
+          ".diagram-measure-row"
+        ).forEach(function (candidate) {
+          if (
+            candidate.dataset.nodeId === node.id &&
+            Number(candidate.dataset.measureIndex) ===
+              nextIndex
+          ) {
+            candidate.focus();
+          }
+        });
+      }
+    });
+  });
+
+  // Find the nearest measure, including small gaps.
+  function closestRow(event) {
+    var nearest = null;
+    var distance = Infinity;
+
+    rows.forEach(function (row) {
+      var rect = row.getBoundingClientRect();
+
+      var gap = Math.max(
+        rect.top - event.clientY,
+        0,
+        event.clientY - rect.bottom
+      );
+
+      if (gap < distance) {
+        distance = gap;
+        nearest = {
+          row: row,
+          index: Number(row.dataset.measureIndex),
+          after: event.clientY >=
+            rect.top + rect.height / 2
+        };
+      }
+    });
+
+    return nearest;
+  }
+
+  wrap.addEventListener("dragover", function (event) {
+    if (
+      !draggingDiagramMeasure ||
+      draggingDiagramMeasure.nodeId !== node.id
+    ) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+
+    var target = closestRow(event);
+    clearDiagramMeasureDropMarker();
+
+    if (
+      !target ||
+      target.index === draggingDiagramMeasure.index
+    ) return;
+
+    diagramMeasureDropRow = target.row;
+
+    target.row.classList.add(
+      target.after
+        ? "diagram-measure-drop-after"
+        : "diagram-measure-drop-before"
+    );
+  });
+
+  wrap.addEventListener("drop", function (event) {
+    if (
+      !draggingDiagramMeasure ||
+      draggingDiagramMeasure.nodeId !== node.id
+    ) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    var source = draggingDiagramMeasure;
+    var target = closestRow(event);
+
+    draggingDiagramMeasure = null;
+    clearDiagramMeasureDropMarker();
+
+    if (target) {
+      reorderMeasuresWithinNode(
+        node.id,
+        source.index,
+        target.index,
+        target.after
+      );
+    }
+  });
+}
+
 function deleteMeasureOnNode(nodeId, measureIndex) {
+
   var n = nodes.find(function (x) { return x.id === nodeId; });
   if (!n) return;
   if (!Array.isArray(n.measures) || !n.measures.length) {
@@ -2248,6 +2511,8 @@ node.measures.forEach(function (m, measureIndex) {
   measuresWrap.appendChild(row);
 });
 
+// B4.2d — Enable dragging within this element's measure list.
+enableMeasureReordering(measuresWrap, node);
 
   item.appendChild(measuresWrap);
 }

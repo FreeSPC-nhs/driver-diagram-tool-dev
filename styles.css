@@ -1574,3 +1574,58 @@ dialog.quick-colour-dialog::backdrop {
 .export-clean .diagram-delete-button {
   display: none !important;
 }
+
+
+/* B4.2d — Drag to reorder individual measures */
+
+.diagram-measure-row.diagram-measure-sortable {
+  position: relative;
+  cursor: grab;
+}
+
+.diagram-measure-row.diagram-measure-sortable:active {
+  cursor: grabbing;
+}
+
+.diagram-measure-grip {
+  position: absolute;
+  left: -15px;
+  top: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.2;
+  opacity: 0.55;
+  user-select: none;
+}
+
+.diagram-measure-row:hover .diagram-measure-grip,
+.diagram-measure-row:focus-visible .diagram-measure-grip {
+  opacity: 1;
+  color: #005eb8;
+}
+
+.diagram-measure-row.diagram-measure-dragging {
+  opacity: 0.35;
+}
+
+/* Inset markers don't shift the measure layout. */
+
+.diagram-measure-row.diagram-measure-drop-before {
+  box-shadow: inset 0 2px 0 #005eb8;
+}
+
+.diagram-measure-row.diagram-measure-drop-after {
+  box-shadow: inset 0 -2px 0 #005eb8;
+}
+
+/* Keep exported diagrams free of editing controls. */
+
+.export-clean .diagram-measure-grip {
+  display: none !important;
+}
+
+.export-clean .diagram-measure-row {
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+

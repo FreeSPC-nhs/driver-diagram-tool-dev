@@ -6078,11 +6078,68 @@ function updateLegendVisibility() {
     }
 }
 
+
 /* ---------- Help / info modal ---------- */
+
+/* B4.3b — Convert Help topics into expandable sections. */
+
+function initialiseHelpAccordions() {
+  var dialog = document.querySelector("#helpOverlay .modal-dialog");
+
+  // Do not build the sections more than once.
+  if (!dialog || dialog.querySelector(".help-accordion")) return;
+
+  // Find the existing Help headings.
+  var headings = Array.from(dialog.children).filter(function (element) {
+    return element.classList.contains("faq-question") ||
+      element.tagName === "H3";
+  });
+
+  headings.forEach(function (heading) {
+
+    var details = document.createElement("details");
+    details.className = "help-accordion";
+
+    // Keep only one Help section expanded at a time.
+    details.setAttribute("name", "driver-help");
+
+    var summary = document.createElement("summary");
+    summary.textContent = heading.textContent.trim();
+
+    var content = document.createElement("div");
+    content.className = "help-accordion-content";
+
+    dialog.insertBefore(details, heading);
+    details.appendChild(summary);
+    details.appendChild(content);
+
+    // Move the existing content into its expandable section.
+    // Preserve all paragraphs, lists and links.
+    var current = heading.nextSibling;
+
+    while (current) {
+      if (current.nodeType === 1 && (
+        current.classList.contains("faq-question") ||
+        current.tagName === "H3"
+      )) {
+        break;
+      }
+
+      var next = current.nextSibling;
+      content.appendChild(current);
+      current = next;
+    }
+
+    heading.remove();
+  });
+}
 
 function openHelpOverlay() {
   var overlay = document.getElementById("helpOverlay");
   if (!overlay) return;
+
+  // Prepare the expandable sections on first opening.
+  initialiseHelpAccordions();
   overlay.classList.add("is-open");
   overlay.setAttribute("aria-hidden", "false");
 }

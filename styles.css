@@ -1629,3 +1629,67 @@ dialog.quick-colour-dialog::backdrop {
   opacity: 1 !important;
 }
 
+
+/* B4.3b — Expandable Help sections */
+
+#helpOverlay .help-accordion {
+  margin: 0.45rem 0;
+  border: 1px solid #cbd9e8;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+#helpOverlay .help-accordion > summary {
+  display: block;
+  position: relative;
+  padding: 0.7rem 2.4rem 0.7rem 0.85rem;
+
+  background: #eef5fc;
+  color: #003b70;
+  font-weight: 600;
+
+  cursor: pointer;
+  list-style: none;
+}
+
+#helpOverlay .help-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+
+#helpOverlay .help-accordion > summary::after {
+  content: "+";
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+
+  font-size: 1.25rem;
+  font-weight: 400;
+}
+
+#helpOverlay .help-accordion[open] > summary::after {
+  content: "−";
+}
+
+#helpOverlay .help-accordion > summary:hover {
+  background: #e1effb;
+}
+
+#helpOverlay .help-accordion > summary:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: -3px;
+}
+
+#helpOverlay .help-accordion-content {
+  padding: 0.75rem 0.95rem;
+}
+
+#helpOverlay .help-accordion-content > :first-child {
+  margin-top: 0;
+}
+
+#helpOverlay .help-accordion-content > :last-child {
+  margin-bottom: 0;
+}
+

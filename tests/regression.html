@@ -1167,7 +1167,146 @@ tests.push(
 
 );
 
+
+/* B4.4b.1 — Outline navigation regression tests. */
+
+tests.push(
+
+  ["Outline text locates and selects the matching box", async w => {
+    const aim = w.nodes.find(n => n.level === "aim");
+    check(!!aim, "No Aim element available for this test");
+
+    const before = w.captureDiagramHistoryState();
+    const historyBefore = w.diagramHistoryIndex;
+
+    try {
+      w.switchDiagramView("outline");
+      check(w.diagramViewMode === "outline",
+        "Outline did not open");
+
+      const labels = Array.from(
+        w.document.querySelectorAll(
+          "#diagramOutlineTree .diagram-outline-locate"
+        )
+      );
+
+      const aimButton = labels.find(button =>
+        button.textContent.trim() === (aim.text || "").trim()
+      );
+
+      check(!!aimButton, "Aim navigation button is missing");
+      check(aimButton.tagName === "BUTTON",
+        "Outline text is not a button");
+
+      aimButton.click();
+
+      check(w.diagramViewMode === "diagram",
+        "Click did not open Diagram view");
+
+      check(
+        String(w.selectedDiagramNodeId) === String(aim.id),
+        "The wrong diagram element was selected"
+      );
+
+      check(
+        w.document.getElementById("exportArea").hidden === false,
+        "The diagram remained hidden"
+      );
+
+      check(w.captureDiagramHistoryState() === before,
+        "Locating an element changed diagram data");
+
+      check(w.diagramHistoryIndex === historyBefore,
+        "Locating an element created an Undo step");
+
+    } finally {
+      if (w.diagramViewMode !== "diagram") {
+        w.switchDiagramView("diagram");
+      }
+    }
+  }],
+
+  ["Outline expansion does not navigate away", async w => {
+    const before = w.captureDiagramHistoryState();
+    const historyBefore = w.diagramHistoryIndex;
+
+    try {
+      w.switchDiagramView("outline");
+      check(w.diagramViewMode === "outline",
+        "Outline did not open");
+
+      // Reuse the test diagram from B4.4a.2.
+      await withTestOutlineDiagram(w, async () => {
+        const details = w.document.querySelector(
+          "#diagramOutlineTree > li > details"
+        );
+
+        check(!!details,
+          "No expandable Outline branch was found");
+
+        const summary = details.querySelector(
+          ":scope > summary"
+        );
+
+        const wasOpen = details.open;
+        summary.click();
+
+        check(details.open !== wasOpen,
+          "Branch did not expand or collapse");
+
+        check(w.diagramViewMode === "outline",
+          "Expanding a branch opened Diagram view");
+
+        // Restore the original branch state.
+        summary.click();
+      });
+
+      check(w.captureDiagramHistoryState() === before,
+        "Expanding a branch changed diagram data");
+
+      check(w.diagramHistoryIndex === historyBefore,
+        "Expanding a branch created an Undo step");
+
+    } finally {
+      if (w.diagramViewMode !== "diagram") {
+        w.switchDiagramView("diagram");
+      }
+    }
+  }],
+
+  ["Outline ignores a missing element ID", async w => {
+    const before = w.captureDiagramHistoryState();
+    const historyBefore = w.diagramHistoryIndex;
+
+    try {
+      w.switchDiagramView("outline");
+      check(w.diagramViewMode === "outline",
+        "Outline did not open");
+
+      w.locateDiagramNodeFromOutline(
+        "missing-element-for-regression-test"
+      );
+
+      check(w.diagramViewMode === "outline",
+        "A missing element unexpectedly changed views");
+
+      check(w.captureDiagramHistoryState() === before,
+        "A missing element changed diagram data");
+
+      check(w.diagramHistoryIndex === historyBefore,
+        "A missing element created an Undo step");
+
+    } finally {
+      if (w.diagramViewMode !== "diagram") {
+        w.switchDiagramView("diagram");
+      }
+    }
+  }]
+
+);
+
 // Run all tests in sequence.
+
 
 
 

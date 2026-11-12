@@ -1836,3 +1836,40 @@ dialog.quick-colour-dialog::backdrop {
   overflow-wrap: anywhere;
 }
 
+
+/* B4.4b — Click Outline text to locate an element */
+
+#diagramOutlineTree .diagram-outline-locate {
+  appearance: none;
+  display: inline;
+  flex: 1 1 180px;
+
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: none;
+
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+
+  white-space: normal;
+  overflow-wrap: anywhere;
+
+  cursor: pointer;
+}
+
+#diagramOutlineTree .diagram-outline-locate:hover {
+  color: #005eb8;
+  text-decoration: underline;
+}
+
+#diagramOutlineTree .diagram-outline-locate:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 3px;
+}
+
+

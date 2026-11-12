@@ -5922,11 +5922,29 @@ function renderDiagramOutline() {
       row.appendChild(swatch);
     }
 
-    var label = document.createElement("span");
-    label.className = "diagram-outline-text";
-    label.textContent = node.text || "(Untitled element)";
-    row.appendChild(label);
+    // B4.4b: Click the text to find this element in Diagram view.
+    var label = document.createElement("button");
+    label.type = "button";
+    label.className =
+      "diagram-outline-text diagram-outline-locate";
 
+    label.textContent = node.text || "(Untitled element)";
+    label.title = "Find this element in the diagram";
+
+    label.setAttribute(
+      "aria-label",
+      "Find in diagram: " + label.textContent
+    );
+
+    label.addEventListener("click", function (event) {
+      // Prevent the parent <summary> from expanding or collapsing.
+      event.preventDefault();
+      event.stopPropagation();
+
+      locateDiagramNodeFromOutline(node.id);
+    });
+
+    row.appendChild(label);
     // Show additional relationships without duplicating nodes.
     var extraCount = connections.filter(function (link) {
       return String(link.toId) === id &&
@@ -6027,7 +6045,69 @@ function renderDiagramOutline() {
   });
 }
 
+
+/* B4.4b — Navigate from Outline to an existing diagram box. */
+
+function locateDiagramNodeFromOutline(nodeId) {
+  var id = String(nodeId);
+
+  // Never navigate to an element that no longer exists.
+  var exists = nodes.some(function (node) {
+    return String(node.id) === id;
+  });
+
+  if (!exists) return;
+
+  // Restore the visual diagram first.
+  if (diagramViewMode === "outline") {
+    switchDiagramView("diagram");
+  }
+
+  // Respect any existing safeguard that prevented switching.
+  if (diagramViewMode !== "diagram") return;
+
+  // Use the existing selection logic, but avoid toggling
+  // off a box that is already selected.
+  if (selectedDiagramNodeId !== id) {
+    selectDiagramNode(id);
+  }
+
+  // Wait until the diagram has had time to become visible
+  // and complete its layout after switching views.
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+
+      var boxes = document.querySelectorAll(
+        "#diagramColumns .diagram-node"
+      );
+
+      var target = Array.from(boxes).find(function (box) {
+        return box.getAttribute("data-id") === id;
+      });
+
+      if (!target) return;
+
+      // Focus the chosen element for keyboard users.
+      // Prevent focus itself from causing an unwanted scroll.
+      try {
+        target.focus({ preventScroll: true });
+      } catch (error) {
+        target.focus();
+      }
+
+      // Bring the selected box into the visible area.
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "center"
+      });
+
+    });
+  });
+}
+
 function switchDiagramView(view) {
+
   if (view !== "diagram" && view !== "outline") return;
   if (view === diagramViewMode) return;
 

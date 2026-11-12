@@ -1305,7 +1305,298 @@ tests.push(
 
 );
 
+
+/* B4.4c.2 — Outline text editing regression tests. */
+
+async function withIsolatedOutlineEdit(w, run) {
+  const saved = {
+    nodes: w.nodes,
+    connections: w.connections,
+    nextId: w.nextId,
+    historyStates: w.diagramHistoryStates,
+    historyIndex: w.diagramHistoryIndex,
+    historyReady: w.diagramHistoryReady,
+    historyRestoring: w.diagramHistoryRestoring,
+    outlineOpen: w.diagramOutlineOpenById,
+    view: w.diagramViewMode,
+    selectedNode: w.selectedDiagramNodeId,
+    selectedMeasure: w.selectedDiagramMeasure,
+    selectedConnection: w.selectedDiagramConnection
+  };
+
+  try {
+    if (w.diagramViewMode !== "diagram") {
+      w.switchDiagramView("diagram");
+    }
+
+    w.nodes = [{
+      id: "outline-test-aim",
+      level: "aim",
+      parentId: "",
+      text: "Original test aim",
+      color: "#fbdede",
+      autoSize: true,
+      measures: []
+    }];
+
+    w.connections = [];
+    w.diagramOutlineOpenById = Object.create(null);
+
+    // Give the temporary diagram its own Undo history.
+    w.initialiseDiagramHistory();
+    w.switchDiagramView("outline");
+
+    check(
+      w.diagramViewMode === "outline",
+      "Outline failed to open"
+    );
+
+    await run("outline-test-aim");
+
+  } finally {
+    // Restore the original test data and Undo history.
+    w.activeOutlineTextEdit = null;
+
+    w.nodes = saved.nodes;
+    w.connections = saved.connections;
+    w.nextId = saved.nextId;
+
+    w.diagramHistoryStates = saved.historyStates;
+    w.diagramHistoryIndex = saved.historyIndex;
+    w.diagramHistoryReady = saved.historyReady;
+
+    w.diagramOutlineOpenById = saved.outlineOpen;
+
+    w.selectedDiagramNodeId = saved.selectedNode;
+    w.selectedDiagramMeasure = saved.selectedMeasure;
+    w.selectedDiagramConnection = saved.selectedConnection;
+
+    w.diagramHistoryRestoring = true;
+
+    try {
+      if (w.diagramViewMode !== saved.view) {
+        w.switchDiagramView(saved.view);
+      }
+
+      w.updateAllViews();
+
+    } finally {
+      w.diagramHistoryRestoring = saved.historyRestoring;
+      w.refreshDiagramHistoryButtons();
+    }
+  }
+}
+
+tests.push(
+
+  ["Outline Save creates one Undo step", async w => {
+    await withIsolatedOutlineEdit(w, async id => {
+
+      const startIndex = w.diagramHistoryIndex;
+
+      const edit = w.document.querySelector(
+        '.diagram-outline-edit-button' +
+        '[data-outline-node-id="' + id + '"]'
+      );
+
+      check(!!edit, "Outline Edit button was missing");
+
+      edit.click();
+
+      const input = w.document.getElementById(
+        "diagramOutlineEditInput"
+      );
+
+      check(!!input, "Outline text editor did not open");
+
+      input.value = "Updated test aim";
+
+      input.dispatchEvent(
+        new w.Event("input", { bubbles: true })
+      );
+
+      w.document.querySelector(
+        ".diagram-outline-editor-actions button:last-child"
+      ).click();
+
+      check(
+        w.nodes[0].text === "Updated test aim",
+        "Save did not update text"
+      );
+
+      check(
+        w.diagramHistoryIndex === startIndex + 1,
+        "Save did not create exactly one Undo entry"
+      );
+
+      check(
+        w.activeOutlineTextEdit === null,
+        "Editor stayed open"
+      );
+
+      w.undoDiagramChange();
+
+      check(
+        w.nodes[0].text === "Original test aim",
+        "Undo failed"
+      );
+
+      w.redoDiagramChange();
+
+      check(
+        w.nodes[0].text === "Updated test aim",
+        "Redo failed"
+      );
+    });
+  }],
+
+  ["Outline Cancel and empty text leave data unchanged",
+    async w => {
+
+      await withIsolatedOutlineEdit(w, async id => {
+
+        const before = w.captureDiagramHistoryState();
+        const startIndex = w.diagramHistoryIndex;
+
+        w.beginOutlineTextEdit(id);
+
+        let input = w.document.getElementById(
+          "diagramOutlineEditInput"
+        );
+
+        input.value = "Discard this draft";
+
+        input.dispatchEvent(
+          new w.Event("input", { bubbles: true })
+        );
+
+        w.document.querySelector(
+          ".diagram-outline-editor-actions button:first-child"
+        ).click();
+
+        check(
+          w.captureDiagramHistoryState() === before,
+          "Cancel changed diagram data"
+        );
+
+        check(
+          w.diagramHistoryIndex === startIndex,
+          "Cancel added an Undo entry"
+        );
+
+        // Try to save an empty text field.
+        w.beginOutlineTextEdit(id);
+
+        input = w.document.getElementById(
+          "diagramOutlineEditInput"
+        );
+
+        input.value = "   ";
+
+        w.finishOutlineTextEdit(true);
+
+        check(
+          !!w.activeOutlineTextEdit,
+          "Empty text closed the editor"
+        );
+
+        check(
+          w.document.getElementById(
+            "diagramOutlineEditError"
+          ).textContent.includes("cannot be empty"),
+          "Empty text did not show a validation message"
+        );
+
+        check(
+          w.captureDiagramHistoryState() === before,
+          "Empty text changed the diagram"
+        );
+
+        w.finishOutlineTextEdit(false);
+      });
+    }
+  ],
+
+  ["Outline unchanged text and view protection", async w => {
+    await withIsolatedOutlineEdit(w, async id => {
+
+      const before = w.captureDiagramHistoryState();
+      const startIndex = w.diagramHistoryIndex;
+
+      w.beginOutlineTextEdit(id);
+
+      // Suppress the expected warning popup during testing.
+      const previousAlert = w.alert;
+      let warning = "";
+
+      try {
+        w.alert = text => {
+          warning = String(text);
+        };
+
+        w.switchDiagramView("diagram");
+
+      } finally {
+        w.alert = previousAlert;
+      }
+
+      check(
+        w.diagramViewMode === "outline",
+        "Switching discarded an unfinished Outline edit"
+      );
+
+      check(
+        warning.includes("save or cancel") ||
+        warning.includes("Save or cancel"),
+        "No warning appeared for unfinished editing"
+      );
+
+      // Save without changing any text.
+      w.finishOutlineTextEdit(true);
+
+      check(
+        w.diagramHistoryIndex === startIndex,
+        "Unchanged text added an Undo entry"
+      );
+
+      check(
+        w.captureDiagramHistoryState() === before,
+        "Unchanged Save modified diagram data"
+      );
+
+      // Escape should cancel another edit.
+      w.beginOutlineTextEdit(id);
+
+      const input = w.document.getElementById(
+        "diagramOutlineEditInput"
+      );
+
+      input.value = "Unfinished keyboard edit";
+
+      input.dispatchEvent(
+        new w.KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true
+        })
+      );
+
+      check(
+        w.activeOutlineTextEdit === null,
+        "Escape did not cancel"
+      );
+
+      check(
+        w.nodes[0].text === "Original test aim",
+        "Escape changed the saved wording"
+      );
+    });
+  }]
+
+);
+
 // Run all tests in sequence.
+
 
 
 

@@ -2066,3 +2066,127 @@ dialog.quick-colour-dialog::backdrop {
 }
 
 
+/* B4 completion — accessibility and responsive layout */
+
+#diagramOutlineStatus {
+  margin: 0.35rem 0;
+  font-size: 0.83rem;
+  color: #334155;
+}
+
+#diagramOutlineStatus:empty {
+  display: none;
+}
+
+@media (max-width: 900px) {
+
+  body {
+    padding: 0.65rem;
+  }
+
+  main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.85rem;
+  }
+
+  #diagramArea,
+  #controlsPanel {
+    min-width: 0;
+  }
+
+  .card {
+    padding: 0.75rem;
+  }
+
+  .modal-dialog {
+    width: calc(100% - 24px);
+    box-sizing: border-box;
+    max-height: calc(100dvh - 24px);
+    padding: 1rem;
+  }
+
+  /* Preserve the four-column diagram hierarchy. */
+
+  #diagramCanvasWrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #diagramCanvas {
+    min-width: 980px;
+  }
+
+  #diagramColumns {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2rem;
+  }
+
+  /* Give the exported diagram its complete width. */
+
+  #exportArea.export-clean {
+    width: 980px;
+    max-width: none;
+  }
+
+  #exportArea.export-clean #diagramCanvasWrapper {
+    overflow: visible;
+  }
+
+  /* Larger touch targets. */
+
+  #diagramViewSwitch button,
+  #diagramOutlineTree .diagram-outline-edit-button,
+  #diagramOutlineTree .diagram-outline-measure-edit,
+  #diagramOutlineTree .diagram-outline-action-menu button,
+  #diagramOutlineTree .diagram-outline-action-menu select {
+    min-height: 44px;
+  }
+
+  /* Outline should fit narrow screens without clipping. */
+
+  #diagramOutlineTree ul {
+    padding-left: 0.75rem;
+    margin-left: 0.25rem;
+  }
+
+  #diagramOutlineTree .diagram-outline-row {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  #diagramOutlineTree .diagram-outline-locate {
+    flex: 1 1 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.35rem 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+
+  #diagramOutlineTree .diagram-outline-action-group {
+    display: flex;
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* Keep the Actions menu within the narrow page. */
+
+  #diagramOutlineTree .diagram-outline-action-menu {
+    position: static;
+    width: min(100%, 280px);
+    box-sizing: border-box;
+    margin-top: 0.35rem;
+    box-shadow: none;
+  }
+}
+

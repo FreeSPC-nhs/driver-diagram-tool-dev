@@ -6276,9 +6276,30 @@ function buildOutlineActionControls(node) {
     menu.appendChild(button);
   }
 
+
+  // B4.4d.5 — Only show movement options when applicable.
+  var siblings = getSiblingIdsInOrder(node);
+  var siblingPosition = siblings.indexOf(node.id);
+
+  if (siblingPosition > 0) {
+    actionButton("Move up", function () {
+      moveOutlineSibling(node.id, "up");
+    });
+  }
+
+  if (
+    siblingPosition >= 0 &&
+    siblingPosition < siblings.length - 1
+  ) {
+    actionButton("Move down", function () {
+      moveOutlineSibling(node.id, "down");
+    });
+  }
+
   actionButton("+ Add measure", function () {
     addMeasureToNode(node.id);
   });
+
 
   var colourLabel = document.createElement("label");
   colourLabel.className = "diagram-outline-colour-label";
@@ -6343,7 +6364,70 @@ function buildOutlineActionControls(node) {
   return group;
 }
 
+
+/* B4.4d.5 — Reorder Outline siblings using the existing helper. */
+
+function moveOutlineSibling(nodeId, direction) {
+  if (diagramViewMode !== "outline" || !outlineActionCanStart()) {
+    return false;
+  }
+
+  var node = nodes.find(function (n) {
+    return String(n.id) === String(nodeId);
+  });
+
+  if (!node || (direction !== "up" && direction !== "down")) {
+    return false;
+  }
+
+  var siblings = getSiblingIdsInOrder(node);
+  var index = siblings.indexOf(node.id);
+
+  if (
+    index < 0 ||
+    (direction === "up" && index === 0) ||
+    (direction === "down" && index === siblings.length - 1)
+  ) {
+    return false;
+  }
+
+  // Existing helper protects parent groups and creates one Undo step.
+  moveNodeWithinSiblings(node.id, direction);
+
+  // Announce the move to assistive technology.
+  var status = document.getElementById("diagramOutlineStatus");
+
+  if (status) {
+    status.textContent =
+      "Moved " + node.text + " " + direction +
+      " within its parent group.";
+  }
+
+  // Restore keyboard focus after the Outline redraw.
+  var editButtons = document.querySelectorAll(
+    '#diagramOutlineTree .diagram-outline-edit-button' +
+    '[data-outline-node-id]'
+  );
+
+  Array.from(editButtons).some(function (button) {
+    if (button.dataset.outlineNodeId !== String(node.id)) {
+      return false;
+    }
+
+    var trigger = button.parentElement.querySelector(
+      ".diagram-outline-action-group > button"
+    );
+
+    if (trigger) trigger.focus();
+
+    return !!trigger;
+  });
+
+  return true;
+}
+
 function renderDiagramOutline() {
+
 
   var host = document.getElementById("diagramOutlineTree");
   if (!host) return;
@@ -6697,7 +6781,9 @@ function locateDiagramNodeFromOutline(nodeId) {
 
       // Bring the selected box into the visible area.
       target.scrollIntoView({
-        behavior: "smooth",
+        behavior: window.matchMedia &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto" : "smooth",
         block: "center",
         inline: "center"
       });

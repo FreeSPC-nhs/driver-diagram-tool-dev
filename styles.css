@@ -1956,3 +1956,22 @@ dialog.quick-colour-dialog::backdrop {
   margin-top: 0.6rem;
 }
 
+
+/* B4.4d.1a — Keep Outline actions on the same line */
+
+#diagramOutlineTree .diagram-outline-row {
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+#diagramOutlineTree .diagram-outline-locate {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+#diagramOutlineTree .diagram-outline-edit-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+

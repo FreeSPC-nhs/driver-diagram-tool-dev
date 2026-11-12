@@ -1873,3 +1873,86 @@ dialog.quick-colour-dialog::backdrop {
 }
 
 
+/* B4.4c — Direct text editing in Outline view */
+
+#diagramOutlineTree .diagram-outline-edit-button {
+  flex: 0 0 auto;
+  margin-left: 0.3rem;
+  padding: 0.2rem 0.55rem;
+
+  background: transparent;
+  color: #005eb8;
+  border: 1px solid #b8cce3;
+  border-radius: 5px;
+
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#diagramOutlineTree .diagram-outline-edit-button:hover {
+  background: #e8f2fc;
+}
+
+#diagramOutlineTree .diagram-outline-edit-button:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+#diagramOutlineTree .diagram-outline-editor {
+  margin: 0.5rem 0.5rem 0.8rem 1.1rem;
+  padding: 0.8rem;
+
+  border: 1px solid #b8cce3;
+  border-radius: 7px;
+  background: #f7faff;
+}
+
+#diagramOutlineTree .diagram-outline-editor label {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #003b70;
+}
+
+#diagramOutlineTree .diagram-outline-editor textarea {
+  display: block;
+  width: 100%;
+  min-height: 75px;
+  box-sizing: border-box;
+  padding: 0.6rem;
+
+  border: 1px solid #a8bacb;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #111111;
+
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+#diagramOutlineTree .diagram-outline-editor textarea:focus {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+#diagramOutlineEditError {
+  margin: 0.35rem 0;
+  color: #b42318;
+  font-size: 0.82rem;
+}
+
+#diagramOutlineEditError:empty {
+  display: none;
+}
+
+#diagramOutlineTree .diagram-outline-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+

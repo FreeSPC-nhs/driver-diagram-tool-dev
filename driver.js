@@ -3654,8 +3654,9 @@ function recordDiagramHistory() {
 
 function canRestoreDiagramHistory() {
   // Never lose unfinished text or modal edits.
-  if (activeDiagramTextEdit) return false;
-
+  if (activeDiagramTextEdit || activeOutlineTextEdit) {
+    return false;
+  }
   if (document.querySelector(
     "dialog[open], .diagram-measure-editor-overlay"
   )) return false;
@@ -4911,6 +4912,12 @@ function getPortableFilename() {
   Creates and downloads the portable HTML file.
 */
 function downloadPortableHtml() {
+  if (activeOutlineTextEdit) {
+    alert(
+      "Save or cancel the Outline text edit before saving."
+    );
+    return;
+  }
   if (activeDiagramTextEdit &&
       activeDiagramTextEdit.isNew) {
     alert("Save or cancel the new box before saving your diagram.");
@@ -5127,6 +5134,12 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
 /* ---------- CSV import / export ---------- */
 
 function downloadCsv() {
+  if (activeOutlineTextEdit) {
+    alert(
+      "Save or cancel the Outline text edit before saving."
+    );
+    return;
+  }
   if (activeDiagramTextEdit &&
       activeDiagramTextEdit.isNew) {
     alert("Save or cancel the new box before downloading a CSV backup.");
@@ -5585,6 +5598,12 @@ function validateDiagramCsvStructuredFields(rows, errors) {
 }
 
 function uploadCsv(file) {
+  if (activeOutlineTextEdit) {
+    alert(
+      "Save or cancel the Outline text edit before opening another CSV."
+    );
+    return;
+  }
 
 
 
@@ -5860,8 +5879,193 @@ diagramAppearance.connectionStyle =
 
 /* B4.4a.1 — Read-only Outline view (same diagram data). */
 
+
 var diagramViewMode = "diagram";
 var diagramOutlineOpenById = Object.create(null);
+
+// B4.4c — Track an unfinished Outline text edit.
+var activeOutlineTextEdit = null;
+
+function beginOutlineTextEdit(nodeId) {
+  var id = String(nodeId);
+
+  if (activeDiagramTextEdit) return;
+
+  if (activeOutlineTextEdit) {
+    if (activeOutlineTextEdit.id !== id) {
+      alert("Save or cancel the current Outline edit first.");
+    }
+
+    var currentInput =
+      document.getElementById("diagramOutlineEditInput");
+
+    if (currentInput) currentInput.focus();
+    return;
+  }
+
+  var node = nodes.find(function (item) {
+    return String(item.id) === id;
+  });
+
+  if (!node) return;
+
+  activeOutlineTextEdit = {
+    id: id,
+    draft: node.text || ""
+  };
+
+  renderDiagramOutline();
+
+  var input =
+    document.getElementById("diagramOutlineEditInput");
+
+  if (input) {
+    input.focus();
+    input.select();
+  }
+}
+
+function finishOutlineTextEdit(save) {
+  if (!activeOutlineTextEdit) return;
+
+  var id = activeOutlineTextEdit.id;
+  var input =
+    document.getElementById("diagramOutlineEditInput");
+
+  var nextText = String(
+    input ? input.value : activeOutlineTextEdit.draft
+  ).trim();
+
+  if (save && !nextText) {
+    var error =
+      document.getElementById("diagramOutlineEditError");
+
+    if (error) {
+      error.textContent = "Text cannot be empty.";
+    }
+
+    if (input) input.focus();
+    return;
+  }
+
+  var node = nodes.find(function (item) {
+    return String(item.id) === id;
+  });
+
+  var changed = !!(
+    save && node && nextText !== node.text
+  );
+
+  activeOutlineTextEdit = null;
+
+  if (changed) {
+    node.text = nextText;
+
+    // Recalculate heights when Diagram view is next shown.
+    delete measuredBoxHeightsById[id];
+    delete measuredItemHeightsById[id];
+
+    // Updates both the Outline and one Undo history entry.
+    updateAllViews();
+  } else {
+    // Cancel, or unchanged text: no history entry.
+    renderDiagramOutline();
+  }
+
+  // Restore keyboard focus to the same Edit button.
+  var buttons = document.querySelectorAll(
+    "#diagramOutlineTree .diagram-outline-edit-button"
+  );
+
+  Array.from(buttons).some(function (button) {
+    if (button.dataset.outlineNodeId === id) {
+      button.focus();
+      return true;
+    }
+    return false;
+  });
+}
+
+function buildOutlineTextEditor(node) {
+  var editor = document.createElement("div");
+  editor.className = "diagram-outline-editor";
+
+  var label = document.createElement("label");
+  label.htmlFor = "diagramOutlineEditInput";
+  label.textContent =
+    "Edit " + getLevelLabel(node.level) + " text";
+
+  editor.appendChild(label);
+
+  var input = document.createElement("textarea");
+  input.id = "diagramOutlineEditInput";
+  input.rows = 3;
+  input.value = activeOutlineTextEdit.draft;
+
+  input.addEventListener("input", function () {
+    if (activeOutlineTextEdit) {
+      activeOutlineTextEdit.draft = input.value;
+    }
+
+    var error =
+      document.getElementById("diagramOutlineEditError");
+
+    if (error) error.textContent = "";
+  });
+
+  input.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      finishOutlineTextEdit(false);
+
+    } else if (
+      event.key === "Enter" &&
+      (event.ctrlKey || event.metaKey)
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      finishOutlineTextEdit(true);
+    }
+  });
+
+  editor.appendChild(input);
+
+  var feedback = document.createElement("p");
+  feedback.id = "diagramOutlineEditError";
+  feedback.setAttribute("role", "alert");
+  editor.appendChild(feedback);
+
+  var actions = document.createElement("div");
+  actions.className = "diagram-outline-editor-actions";
+
+  var cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.className = "secondary";
+
+  cancel.addEventListener("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    finishOutlineTextEdit(false);
+  });
+
+  var confirm = document.createElement("button");
+  confirm.type = "button";
+  confirm.textContent = "Save";
+
+  confirm.addEventListener("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    finishOutlineTextEdit(true);
+  });
+
+  actions.appendChild(cancel);
+  actions.appendChild(confirm);
+  editor.appendChild(actions);
+
+  return editor;
+}
 
 function renderDiagramOutline() {
   var host = document.getElementById("diagramOutlineTree");
@@ -5945,8 +6149,29 @@ function renderDiagramOutline() {
     });
 
     row.appendChild(label);
-    // Show additional relationships without duplicating nodes.
-    var extraCount = connections.filter(function (link) {
+
+    // B4.4c — Edit the text without leaving Outline view.
+    var editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "diagram-outline-edit-button";
+    editButton.textContent = "Edit";
+    editButton.dataset.outlineNodeId = id;
+
+    editButton.setAttribute(
+      "aria-label",
+      "Edit text: " + label.textContent
+    );
+
+    editButton.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      beginOutlineTextEdit(id);
+    });
+
+    row.appendChild(editButton);
+
+    // Show additional relationships without duplicating nodes.    var extraCount = connections.filter(function (link) {
       return String(link.toId) === id &&
         String(link.fromId) !== String(node.parentId || "");
     }).length;
@@ -6023,11 +6248,33 @@ function renderDiagramOutline() {
       li.appendChild(leaf);
     }
 
+    // B4.4c — Place an active editor beneath its element.
+    if (
+      activeOutlineTextEdit &&
+      activeOutlineTextEdit.id === id
+    ) {
+      var editor = buildOutlineTextEditor(node);
+
+      var branch = li.querySelector(":scope > details");
+
+      if (branch) {
+        // Keep this branch open while editing.
+        branch.open = true;
+
+        var childList =
+          branch.querySelector(":scope > ul");
+
+        branch.insertBefore(editor, childList);
+      } else {
+        // Change ideas and other leaf elements.
+        li.appendChild(editor);
+      }
+    }
+
     list.appendChild(li);
   }
 
-  // Start with aims and any unconnected elements.
-  nodes.forEach(function (node) {
+  // Start with aims and any unconnected elements.  nodes.forEach(function (node) {
     var parentId = String(node.parentId || "");
 
     if (
@@ -6112,8 +6359,9 @@ function switchDiagramView(view) {
   if (view === diagramViewMode) return;
 
   // Do not interrupt an unfinished edit.
-  if (
+    if (
     activeDiagramTextEdit ||
+    activeOutlineTextEdit ||
     document.querySelector(
       "dialog[open], .diagram-measure-editor-overlay"
     )
@@ -6244,6 +6492,16 @@ function toggleControlsVisibility() {
 // so html2canvas / html2pdf capture lines reliably.
 
 function withSvgImageOverlay(runCapture) {
+
+  if (activeOutlineTextEdit) {
+    alert(
+      "Save or cancel the Outline text edit before exporting."
+    );
+
+    return Promise.reject(
+      new Error("Unfinished Outline text edit.")
+    );
+  }
 
   // B4.4a.1: Always export the visual diagram.
   if (diagramViewMode === "outline") {

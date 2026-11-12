@@ -5883,10 +5883,118 @@ diagramAppearance.connectionStyle =
 var diagramViewMode = "diagram";
 var diagramOutlineOpenById = Object.create(null);
 
-// B4.4c — Track an unfinished Outline text edit.
+
+/* B4.4c — Track an unfinished Outline text edit. */
 var activeOutlineTextEdit = null;
 
+/* B4.4d.1 — Add a child from Outline without creating a draft node. */
+
+function beginOutlineChildEdit(parentId) {
+  if (diagramViewMode !== "outline" || activeDiagramTextEdit) return;
+
+  if (activeOutlineTextEdit) {
+    alert("Save or cancel the current Outline edit first.");
+
+    var existingInput =
+      document.getElementById("diagramOutlineEditInput");
+
+    if (existingInput) existingInput.focus();
+    return;
+  }
+
+  var parent = nodes.find(function (node) {
+    return String(node.id) === String(parentId);
+  });
+
+  if (!parent) return;
+
+  var childLevel = getNextLevel(parent.level);
+  if (!childLevel) return;
+
+  activeOutlineTextEdit = {
+    isNew: true,
+    parentId: String(parent.id),
+    level: childLevel,
+    draft: ""
+  };
+
+  diagramOutlineOpenById[String(parent.id)] = true;
+  renderDiagramOutline();
+
+  var input = document.getElementById("diagramOutlineEditInput");
+  if (input) input.focus();
+}
+
+function finishOutlineChildEdit(save) {
+  var editing = activeOutlineTextEdit;
+  if (!editing || !editing.isNew) return;
+
+  var input = document.getElementById("diagramOutlineEditInput");
+  var text = String(input ? input.value : editing.draft).trim();
+  var error = document.getElementById("diagramOutlineEditError");
+
+  if (save && !text) {
+    if (error) error.textContent = "Text cannot be empty.";
+    if (input) input.focus();
+    return;
+  }
+
+  var parent = nodes.find(function (node) {
+    return String(node.id) === editing.parentId;
+  });
+
+  if (save && (!parent || getNextLevel(parent.level) !== editing.level)) {
+    if (error) error.textContent = "The parent is no longer available.";
+    return;
+  }
+
+  activeOutlineTextEdit = null;
+  var newNode = null;
+
+  if (save) {
+    newNode = createNode({
+      level: editing.level,
+      text: text,
+      parentId: parent.id,
+      color: parent.color || ""
+    });
+
+    insertAfterLastSibling(nodes, newNode);
+
+    connections.push({
+      fromId: parent.id,
+      toId: newNode.id
+    });
+
+    diagramOutlineOpenById[String(parent.id)] = true;
+
+    // One completed addition creates one Undo entry.
+    updateAllViews();
+
+  } else {
+    // Cancel leaves nodes, connections, IDs and history unchanged.
+    renderDiagramOutline();
+  }
+
+  // Keep keyboard focus near the same element.
+  var selector = save
+    ? ".diagram-outline-edit-button"
+    : ".diagram-outline-add-button";
+
+  var targetId = save ? String(newNode.id) : editing.parentId;
+  var attribute = save ? "outlineNodeId" : "outlineParentId";
+
+  Array.from(
+    document.querySelectorAll("#diagramOutlineTree " + selector)
+  ).some(function (button) {
+    if (button.dataset[attribute] !== targetId) return false;
+    button.focus();
+    return true;
+  });
+}
+
 function beginOutlineTextEdit(nodeId) {
+
   var id = String(nodeId);
 
   if (activeDiagramTextEdit) return;
@@ -5928,8 +6036,13 @@ function beginOutlineTextEdit(nodeId) {
 function finishOutlineTextEdit(save) {
   if (!activeOutlineTextEdit) return;
 
-  var id = activeOutlineTextEdit.id;
-  var input =
+  // New children have no ID until their text is confirmed.
+  if (activeOutlineTextEdit.isNew) {
+    finishOutlineChildEdit(save);
+    return;
+  }
+
+  var id = activeOutlineTextEdit.id;  var input =
     document.getElementById("diagramOutlineEditInput");
 
   var nextText = String(
@@ -5993,7 +6106,8 @@ function buildOutlineTextEditor(node) {
   var label = document.createElement("label");
   label.htmlFor = "diagramOutlineEditInput";
   label.textContent =
-    "Edit " + getLevelLabel(node.level) + " text";
+    (activeOutlineTextEdit.isNew ? "Add " : "Edit ") +
+    getLevelLabel(node.level) + " text";
 
   editor.appendChild(label);
 
@@ -6169,9 +6283,41 @@ function renderDiagramOutline() {
       beginOutlineTextEdit(id);
     });
 
+
     row.appendChild(editButton);
 
+    // B4.4d.1 — Only the first three levels can have children.
+    var nextLevel = getNextLevel(node.level);
+
+    if (nextLevel) {
+      var addButton = document.createElement("button");
+      addButton.type = "button";
+
+      // Reuse the existing Edit button's compact styling.
+      addButton.className =
+        "diagram-outline-edit-button diagram-outline-add-button";
+
+      addButton.textContent = "+ Add child";
+      addButton.dataset.outlineParentId = id;
+      addButton.title = "Add " + getLevelLabel(nextLevel);
+
+      addButton.setAttribute(
+        "aria-label",
+        "Add " + getLevelLabel(nextLevel) + " under " + node.text
+      );
+
+      addButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        beginOutlineChildEdit(id);
+      });
+
+      row.appendChild(addButton);
+    }
+
     // Show additional relationships without duplicating nodes.
+
     var extraCount = connections.filter(function (link) {
       return String(link.toId) === id &&
         String(link.fromId) !== String(node.parentId || "");
@@ -6190,7 +6336,13 @@ function renderDiagramOutline() {
     var measures = Array.isArray(node.measures)
       ? node.measures : [];
 
-    if (childNodes.length || measures.length) {
+    var addingChildHere = !!(
+      activeOutlineTextEdit &&
+      activeOutlineTextEdit.isNew &&
+      activeOutlineTextEdit.parentId === id
+    );
+
+    if (childNodes.length || measures.length || addingChildHere) {
       var details = document.createElement("details");
 
       details.open =
@@ -6230,9 +6382,23 @@ function renderDiagramOutline() {
         childList.appendChild(measureRow);
       });
 
-      childNodes.forEach(function (child) {
+            childNodes.forEach(function (child) {
         addNode(child, childList);
       });
+
+      if (addingChildHere) {
+        var draftItem = document.createElement("li");
+        draftItem.className = "diagram-outline-draft-item";
+
+        draftItem.appendChild(
+          buildOutlineTextEditor({
+            level: activeOutlineTextEdit.level
+          })
+        );
+
+        childList.appendChild(draftItem);
+        details.open = true;
+      }
 
       details.appendChild(childList);
 

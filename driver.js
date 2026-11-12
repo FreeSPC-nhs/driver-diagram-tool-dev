@@ -6181,7 +6181,170 @@ function buildOutlineTextEditor(node) {
   return editor;
 }
 
+
+/* B4.4d.2–4 — Reuse existing editors from a compact Outline Actions menu. */
+
+function outlineActionCanStart() {
+  if (
+    activeDiagramTextEdit ||
+    activeOutlineTextEdit ||
+    document.querySelector(
+      "dialog[open], .diagram-measure-editor-overlay"
+    )
+  ) {
+    alert("Save or cancel the current edit first.");
+    return false;
+  }
+  return true;
+}
+
+function buildOutlineActionControls(node) {
+  var group = document.createElement("span");
+  group.className = "diagram-outline-action-group";
+
+  var trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "diagram-outline-edit-button";
+  trigger.textContent = "Actions ▾";
+  trigger.setAttribute("aria-label", "Actions for " + node.text);
+  trigger.setAttribute("aria-expanded", "false");
+
+  var menu = document.createElement("span");
+  menu.className = "diagram-outline-action-menu";
+  menu.hidden = true;
+
+  function closeMenu() {
+    menu.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+  }
+
+  trigger.addEventListener("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!outlineActionCanStart()) return;
+
+    var opening = menu.hidden;
+
+    document.querySelectorAll(
+      "#diagramOutlineTree .diagram-outline-action-menu"
+    ).forEach(function (other) {
+      other.hidden = true;
+    });
+
+    document.querySelectorAll(
+      "#diagramOutlineTree .diagram-outline-action-group > button"
+    ).forEach(function (button) {
+      button.setAttribute("aria-expanded", "false");
+    });
+
+    menu.hidden = !opening;
+    trigger.setAttribute("aria-expanded", opening ? "true" : "false");
+  });
+
+  // Don't expand/collapse the enclosing Outline branch.
+  group.addEventListener("click", function (event) {
+    event.stopPropagation();
+  });
+
+  group.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !menu.hidden) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenu();
+      trigger.focus();
+    }
+  });
+
+  group.addEventListener("focusout", function (event) {
+    if (!group.contains(event.relatedTarget)) closeMenu();
+  });
+
+  function actionButton(text, action, className) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.textContent = text;
+    if (className) button.className = className;
+
+    button.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!outlineActionCanStart()) return;
+      closeMenu();
+      action();
+    });
+
+    menu.appendChild(button);
+  }
+
+  actionButton("+ Add measure", function () {
+    addMeasureToNode(node.id);
+  });
+
+  var colourLabel = document.createElement("label");
+  colourLabel.className = "diagram-outline-colour-label";
+  colourLabel.textContent = "Box colour";
+
+  var colourSelect = document.createElement("select");
+  colourSelect.setAttribute("aria-label", "Colour for " + node.text);
+
+  function option(name, value) {
+    var item = document.createElement("option");
+    item.value = value;
+    item.textContent = name;
+    colourSelect.appendChild(item);
+  }
+
+  option("No colour", "");
+  colorOptions.forEach(function (colour) {
+    option(colour.label, colour.value);
+  });
+
+  if (node.color && !colorOptions.some(function (colour) {
+    return colour.value === node.color;
+  })) {
+    option("Current colour (" + node.color + ")", node.color);
+  }
+
+  option("+ Create a named colour…", "__outline_new_colour__");
+  colourSelect.value = node.color || "";
+
+  colourSelect.addEventListener("change", function (event) {
+    event.stopPropagation();
+    if (!outlineActionCanStart()) {
+      colourSelect.value = node.color || "";
+      return;
+    }
+
+    var chosen = colourSelect.value;
+    closeMenu();
+
+    if (chosen === "__outline_new_colour__") {
+      colourSelect.value = node.color || "";
+      openQuickColourDialogForNode(node.id);
+      return;
+    }
+
+    if (chosen !== (node.color || "")) {
+      node.color = chosen;
+      updateAllViews();
+    }
+  });
+
+  colourLabel.appendChild(colourSelect);
+  menu.appendChild(colourLabel);
+
+  actionButton("Delete element…", function () {
+    // Existing confirmation also describes dependent elements.
+    deleteNode(node.id);
+  }, "diagram-outline-delete-action");
+
+  group.appendChild(trigger);
+  group.appendChild(menu);
+  return group;
+}
+
 function renderDiagramOutline() {
+
   var host = document.getElementById("diagramOutlineTree");
   if (!host) return;
 
@@ -6316,8 +6479,10 @@ function renderDiagramOutline() {
       row.appendChild(addButton);
     }
 
-    // Show additional relationships without duplicating nodes.
+    // B4.4d.2–4: Compact, direct editing actions.
+    row.appendChild(buildOutlineActionControls(node));
 
+    // Show additional relationships without duplicating nodes.
     var extraCount = connections.filter(function (link) {
       return String(link.toId) === id &&
         String(link.fromId) !== String(node.parentId || "");
@@ -6358,8 +6523,9 @@ function renderDiagramOutline() {
 
       var childList = document.createElement("ul");
 
+
       // Measures stay with their own element and keep their order.
-      measures.forEach(function (measure) {
+      measures.forEach(function (measure, measureIndex) {
         var measureRow = document.createElement("li");
         measureRow.className = "diagram-outline-measure";
 
@@ -6374,13 +6540,32 @@ function renderDiagramOutline() {
         measureRow.appendChild(bullet);
 
         var text = document.createElement("span");
+        text.className = "diagram-outline-measure-text";
         text.textContent = typeof measure === "string"
           ? measure
           : (measure && measure.text) || "(Untitled measure)";
 
+        var editMeasureButton = document.createElement("button");
+        editMeasureButton.type = "button";
+        editMeasureButton.className = "diagram-outline-measure-edit";
+        editMeasureButton.textContent = "Edit";
+        editMeasureButton.title = "Edit or delete this measure";
+        editMeasureButton.setAttribute(
+          "aria-label", "Edit or delete measure: " + text.textContent
+        );
+
+        editMeasureButton.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!outlineActionCanStart()) return;
+          editMeasureOnNode(node.id, measureIndex);
+        });
+
         measureRow.appendChild(text);
+        measureRow.appendChild(editMeasureButton);
         childList.appendChild(measureRow);
       });
+
 
             childNodes.forEach(function (child) {
         addNode(child, childList);

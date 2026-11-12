@@ -1975,3 +1975,94 @@ dialog.quick-colour-dialog::backdrop {
 }
 
 
+/* B4.4d.2–4 — Compact Outline actions and measure editing. */
+
+#diagramOutlineTree .diagram-outline-action-group {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+#diagramOutlineTree .diagram-outline-action-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 245px;
+  max-width: calc(100vw - 28px);
+  padding: 0.7rem;
+  border: 1px solid #b8cce3;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.17);
+  color: #111111;
+  white-space: normal;
+}
+
+#diagramOutlineTree .diagram-outline-action-menu[hidden] {
+  display: none !important;
+}
+
+#diagramOutlineTree .diagram-outline-action-menu button,
+#diagramOutlineTree .diagram-outline-action-menu select {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #b8cce3;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #111111;
+  font: inherit;
+  font-size: 0.83rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+#diagramOutlineTree .diagram-outline-action-menu button:hover {
+  background: #eef5fc;
+}
+
+#diagramOutlineTree .diagram-outline-action-menu .diagram-outline-delete-action {
+  color: #b42318;
+  border-color: #e8b1ab;
+}
+
+#diagramOutlineTree .diagram-outline-colour-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+#diagramOutlineTree .diagram-outline-colour-label select {
+  display: block;
+  margin-top: 0.3rem;
+  font-weight: 400;
+}
+
+#diagramOutlineTree .diagram-outline-action-menu :focus-visible,
+#diagramOutlineTree .diagram-outline-measure-edit:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+#diagramOutlineTree .diagram-outline-measure-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#diagramOutlineTree .diagram-outline-measure-edit {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid #b8cce3;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #005eb8;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+

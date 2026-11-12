@@ -6171,7 +6171,8 @@ function renderDiagramOutline() {
 
     row.appendChild(editButton);
 
-    // Show additional relationships without duplicating nodes.    var extraCount = connections.filter(function (link) {
+    // Show additional relationships without duplicating nodes.
+    var extraCount = connections.filter(function (link) {
       return String(link.toId) === id &&
         String(link.fromId) !== String(node.parentId || "");
     }).length;
@@ -6274,7 +6275,8 @@ function renderDiagramOutline() {
     list.appendChild(li);
   }
 
-  // Start with aims and any unconnected elements.  nodes.forEach(function (node) {
+  // Start with aims and any unconnected elements.
+  nodes.forEach(function (node) {
     var parentId = String(node.parentId || "");
 
     if (

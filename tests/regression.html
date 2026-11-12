@@ -1595,7 +1595,512 @@ tests.push(
 
 );
 
+
+/* B4.4d — Deferred regression tests for Outline actions. */
+
+function outlineActionsForTest(w, nodeId) {
+  const edit = Array.from(w.document.querySelectorAll(
+    '#diagramOutlineTree .diagram-outline-edit-button[data-outline-node-id]'
+  )).find(button => button.dataset.outlineNodeId === String(nodeId));
+
+  check(!!edit, 'Could not find the Outline row for ' + nodeId);
+
+  const group = edit.parentElement.querySelector(
+    '.diagram-outline-action-group'
+  );
+
+  check(!!group, 'Outline Actions control is missing');
+
+  return {
+    trigger: group.querySelector(':scope > button'),
+    menu: group.querySelector('.diagram-outline-action-menu')
+  };
+}
+
+function clickOutlineMenuItemForTest(w, nodeId, label) {
+  const actions = outlineActionsForTest(w, nodeId);
+
+  const branch = actions.trigger.closest('details');
+  const wasOpen = branch ? branch.open : null;
+
+  actions.trigger.click();
+
+  check(!actions.menu.hidden, 'Actions menu did not open');
+
+  if (branch) {
+    check(branch.open === wasOpen,
+      'Opening Actions accidentally collapsed its branch');
+  }
+
+  const item = Array.from(actions.menu.querySelectorAll('button'))
+    .find(button => button.textContent.trim() === label);
+
+  check(!!item, 'Missing Outline action: ' + label);
+
+  item.click();
+}
+
+function measureEditorButtonForTest(w, label) {
+  const overlay = w.document.querySelector(
+    '.diagram-measure-editor-overlay'
+  );
+
+  check(!!overlay, 'Measure editor did not open');
+
+  const button = Array.from(overlay.querySelectorAll('button'))
+    .find(item => item.textContent.trim() === label);
+
+  check(!!button, 'Missing measure editor button: ' + label);
+
+  return { overlay, button };
+}
+
+tests.push(
+
+  ["Outline child Save, Cancel and Undo/Redo", async w => {
+    await withIsolatedOutlineEdit(w, async aimId => {
+      const before = w.captureDiagramHistoryState();
+      const history = w.diagramHistoryIndex;
+      const nextId = w.nextId;
+
+      let addChild = w.document.querySelector(
+        '.diagram-outline-add-button[data-outline-parent-id="' +
+        aimId + '"]'
+      );
+
+      check(!!addChild, 'Aim Add child button is missing');
+
+      addChild.click();
+
+      w.document.getElementById(
+        'diagramOutlineEditInput'
+      ).value = 'Discard me';
+
+      w.finishOutlineTextEdit(false);
+
+      check(w.captureDiagramHistoryState() === before,
+        'Cancelling a child changed diagram data');
+
+      check(
+        w.diagramHistoryIndex === history &&
+        w.nextId === nextId,
+        'Cancelling a child changed history or next ID'
+      );
+
+      addChild = w.document.querySelector(
+        '.diagram-outline-add-button[data-outline-parent-id="' +
+        aimId + '"]'
+      );
+
+      addChild.click();
+
+      // Actions must not interrupt an unfinished new child.
+      const actions = outlineActionsForTest(w, aimId);
+      const previousAlert = w.alert;
+
+      try {
+        w.alert = () => {};
+        actions.trigger.click();
+
+        check(
+          actions.menu.hidden && !!w.activeOutlineTextEdit,
+          'Actions interrupted the unfinished child'
+        );
+      } finally {
+        w.alert = previousAlert;
+      }
+
+      w.document.getElementById(
+        'diagramOutlineEditInput'
+      ).value = '   ';
+
+      w.finishOutlineTextEdit(true);
+
+      check(!!w.activeOutlineTextEdit,
+        'Empty child text was accepted');
+
+      w.document.getElementById(
+        'diagramOutlineEditInput'
+      ).value = 'Regression primary driver';
+
+      w.finishOutlineTextEdit(true);
+
+      const child = w.nodes.find(
+        n => n.text === 'Regression primary driver'
+      );
+
+      check(
+        !!child &&
+        child.level === 'primary' &&
+        child.parentId === aimId,
+        'Child level or parent was incorrect'
+      );
+
+      check(
+        child.color === w.nodes[0].color,
+        'Child did not inherit the parent colour'
+      );
+
+      check(
+        w.connections.some(
+          c => c.fromId === aimId && c.toId === child.id
+        ),
+        'Child connection was not created'
+      );
+
+      check(
+        w.diagramHistoryIndex === history + 1,
+        'Saving a child did not create one Undo entry'
+      );
+
+      w.undoDiagramChange();
+
+      check(
+        !w.nodes.some(n => n.id === child.id),
+        'Undo did not remove the child'
+      );
+
+      w.redoDiagramChange();
+
+      check(
+        w.nodes.some(n => n.id === child.id),
+        'Redo did not restore the child'
+      );
+    });
+  }],
+
+  ["Outline measure Add, Edit and Delete", async w => {
+    await withIsolatedOutlineEdit(w, async aimId => {
+      const history = w.diagramHistoryIndex;
+
+      clickOutlineMenuItemForTest(
+        w, aimId, '+ Add measure'
+      );
+
+      let editor = measureEditorButtonForTest(w, 'Add');
+
+      editor.overlay.querySelector('textarea').value =
+        'Measure one';
+
+      editor.overlay.querySelector('select').value =
+        'process';
+
+      editor.button.click();
+
+      check(
+        w.nodes[0].measures.length === 1 &&
+        w.nodes[0].measures[0].type === 'process',
+        'Measure was not added to the correct element'
+      );
+
+      check(
+        w.diagramHistoryIndex === history + 1,
+        'Adding measure should create one Undo entry'
+      );
+
+      let edit = w.document.querySelector(
+        '#diagramOutlineTree .diagram-outline-measure-edit'
+      );
+
+      check(!!edit, 'Outline measure Edit button is missing');
+
+      edit.click();
+
+      editor = measureEditorButtonForTest(w, 'Save');
+
+      editor.overlay.querySelector('textarea').value =
+        'Measure revised';
+
+      editor.overlay.querySelector('select').value =
+        'balancing';
+
+      editor.button.click();
+
+      check(
+        w.nodes[0].measures[0].text === 'Measure revised' &&
+        w.nodes[0].measures[0].type === 'balancing',
+        'Measure edit did not save text and classification'
+      );
+
+      check(
+        w.diagramHistoryIndex === history + 2,
+        'Editing measure should create one Undo entry'
+      );
+
+      w.document.querySelector(
+        '#diagramOutlineTree .diagram-outline-measure-edit'
+      ).click();
+
+      editor = measureEditorButtonForTest(w, 'Delete measure');
+
+      const originalConfirm = w.confirm;
+
+      try {
+        w.confirm = () => false;
+        editor.button.click();
+
+        check(
+          w.nodes[0].measures.length === 1,
+          'Cancelled measure deletion changed data'
+        );
+
+        w.confirm = () => true;
+        editor.button.click();
+
+      } finally {
+        w.confirm = originalConfirm;
+      }
+
+      check(
+        w.nodes[0].measures.length === 0,
+        'Confirmed deletion did not remove the measure'
+      );
+
+      check(
+        w.diagramHistoryIndex === history + 3,
+        'Deleting measure should create one Undo entry'
+      );
+
+      w.undoDiagramChange();
+
+      check(
+        w.nodes[0].measures[0].text === 'Measure revised',
+        'Undo did not restore the deleted measure'
+      );
+
+      w.redoDiagramChange();
+
+      check(
+        w.nodes[0].measures.length === 0,
+        'Redo did not delete the measure again'
+      );
+    });
+  }],
+
+  ["Outline existing and newly named colours", async w => {
+    const originalPalette = w.colorOptions;
+
+    try {
+      await withIsolatedOutlineEdit(w, async aimId => {
+        w.colorOptions = [
+          { label: 'Test blue', value: '#336699' }
+        ];
+
+        // Start an independent history with the test palette.
+        w.initialiseDiagramHistory();
+        w.renderDiagramOutline();
+
+        const history = w.diagramHistoryIndex;
+
+        let actions = outlineActionsForTest(w, aimId);
+        actions.trigger.click();
+
+        let select = actions.menu.querySelector('select');
+        select.value = '#336699';
+
+        select.dispatchEvent(
+          new w.Event('change', { bubbles: true })
+        );
+
+        check(
+          w.nodes[0].color === '#336699',
+          'Existing colour was not applied'
+        );
+
+        check(
+          w.diagramHistoryIndex === history + 1,
+          'Changing colour should create one Undo entry'
+        );
+
+        w.undoDiagramChange();
+
+        check(
+          w.nodes[0].color === '#fbdede',
+          'Undo did not restore the previous colour'
+        );
+
+        w.redoDiagramChange();
+
+        check(
+          w.nodes[0].color === '#336699',
+          'Redo did not restore the selected colour'
+        );
+
+        // Create a new named colour from the Outline.
+        actions = outlineActionsForTest(w, aimId);
+        actions.trigger.click();
+
+        select = actions.menu.querySelector('select');
+        select.value = '__outline_new_colour__';
+
+        select.dispatchEvent(
+          new w.Event('change', { bubbles: true })
+        );
+
+        const dialog = w.document.getElementById(
+          'quickColourDialog'
+        );
+
+        check(
+          !!dialog && dialog.open,
+          'New named-colour dialog did not open'
+        );
+
+        dialog.querySelector('#quickColourName').value =
+          'Regression violet';
+
+        dialog.querySelector('#quickColourValue').value =
+          '#9876ab';
+
+        dialog.querySelector('form').dispatchEvent(
+          new w.Event('submit', {
+            bubbles: true,
+            cancelable: true
+          })
+        );
+
+        check(
+          w.nodes[0].color === '#9876ab',
+          'New colour was not applied'
+        );
+
+        check(
+          w.colorOptions.some(
+            c => c.label === 'Regression violet' &&
+                 c.value === '#9876ab'
+          ),
+          'New named colour was not saved'
+        );
+
+        // Removing the colour must also work.
+        actions = outlineActionsForTest(w, aimId);
+        actions.trigger.click();
+
+        select = actions.menu.querySelector('select');
+        select.value = '';
+
+        select.dispatchEvent(
+          new w.Event('change', { bubbles: true })
+        );
+
+        check(
+          w.nodes[0].color === '',
+          'No colour did not clear the element colour'
+        );
+      });
+
+    } finally {
+      // Restore the original shared palette without adding history.
+      w.colorOptions = originalPalette;
+
+      const restoring = w.diagramHistoryRestoring;
+      w.diagramHistoryRestoring = true;
+
+      try {
+        w.updateAllViews();
+      } finally {
+        w.diagramHistoryRestoring = restoring;
+      }
+    }
+  }],
+
+  ["Outline branch deletion confirms and supports Undo", async w => {
+    await withIsolatedOutlineEdit(w, async aimId => {
+
+      // Create a primary driver and its dependent secondary.
+      w.beginOutlineChildEdit(aimId);
+
+      w.document.getElementById(
+        'diagramOutlineEditInput'
+      ).value = 'Driver for deletion';
+
+      w.finishOutlineTextEdit(true);
+
+      const parent = w.nodes.find(
+        n => n.text === 'Driver for deletion'
+      );
+
+      check(!!parent, 'Parent fixture could not be created');
+
+      w.beginOutlineChildEdit(parent.id);
+
+      w.document.getElementById(
+        'diagramOutlineEditInput'
+      ).value = 'Dependent secondary';
+
+      w.finishOutlineTextEdit(true);
+
+      const child = w.nodes.find(
+        n => n.text === 'Dependent secondary'
+      );
+
+      check(!!child, 'Child fixture could not be created');
+
+      const history = w.diagramHistoryIndex;
+      const originalConfirm = w.confirm;
+
+      try {
+        w.confirm = () => false;
+
+        clickOutlineMenuItemForTest(
+          w, parent.id, 'Delete element…'
+        );
+
+        check(
+          w.nodes.some(n => n.id === parent.id),
+          'Cancelled deletion removed the parent'
+        );
+
+        w.confirm = () => true;
+
+        clickOutlineMenuItemForTest(
+          w, parent.id, 'Delete element…'
+        );
+
+      } finally {
+        w.confirm = originalConfirm;
+      }
+
+      check(
+        !w.nodes.some(
+          n => n.id === parent.id || n.id === child.id
+        ),
+        'Deleting parent did not remove its branch'
+      );
+
+      check(
+        !w.connections.some(
+          c => c.toId === parent.id || c.toId === child.id
+        ),
+        'Deleted branch left behind a connection'
+      );
+
+      check(
+        w.diagramHistoryIndex === history + 1,
+        'Deleting branch should create one Undo step'
+      );
+
+      w.undoDiagramChange();
+
+      check(
+        w.nodes.some(n => n.id === parent.id) &&
+        w.nodes.some(n => n.id === child.id),
+        'Undo did not restore the branch'
+      );
+
+      w.redoDiagramChange();
+
+      check(
+        !w.nodes.some(n => n.id === parent.id),
+        'Redo did not delete the branch again'
+      );
+    });
+  }]
+
+);
+
 // Run all tests in sequence.
+
 
 
 

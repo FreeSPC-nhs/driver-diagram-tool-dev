@@ -5671,7 +5671,10 @@ function uploadCsv(file) {
           text: text,
           parentId: parentId,
           color: color,
-          autoSize: ((row.auto_size || "").toString().trim() === "1"),
+          // Missing or blank means auto-size on; explicit 0 means off.
+          autoSize: (row.auto_size == null ||
+            String(row.auto_size).trim() === "" ||
+            String(row.auto_size).trim() === "1"),
 
           measures: measures
         });

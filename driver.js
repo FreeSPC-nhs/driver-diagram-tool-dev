@@ -8147,7 +8147,56 @@ document.addEventListener("keydown", function (e) {
 });
 
 
+
+  /* B5.3a.1 — Connect the AI guidance modal. */
+
+  var aiPanel = document.getElementById("aiAssistancePanel");
+  var aiDialog = document.getElementById("aiGuidanceDialog");
+  var aiContent = document.getElementById("aiGuidanceContent");
+  var aiTrigger = document.getElementById("btnAiGuidance");
+  var aiClose = document.getElementById("btnCloseAiGuidance");
+
+  if (aiPanel && aiDialog && aiContent && aiTrigger && aiClose) {
+
+    // Move existing guidance from the sidebar into the modal.
+    aiContent.appendChild(aiPanel);
+    aiPanel.open = true;
+
+    // Open the window.
+    aiTrigger.addEventListener("click", function () {
+      if (!aiDialog.open) {
+        aiDialog.showModal();
+        aiClose.focus();
+      }
+    });
+
+    // Close using the X button.
+    aiClose.addEventListener("click", function () {
+      aiDialog.close();
+    });
+
+    // Also handles Escape and returns keyboard focus.
+    aiDialog.addEventListener("close", function () {
+      aiTrigger.focus();
+    });
+
+    // Clicking the dark area outside also closes the window.
+    aiDialog.addEventListener("click", function (event) {
+      if (event.target !== aiDialog) return;
+
+      var rect = aiDialog.getBoundingClientRect();
+
+      if (event.clientX < rect.left ||
+          event.clientX > rect.right ||
+          event.clientY < rect.top ||
+          event.clientY > rect.bottom) {
+        aiDialog.close();
+      }
+    });
+  }
+
   var btnHelp = document.getElementById("btnHelp");
+
   var helpOverlay = document.getElementById("helpOverlay");
   var helpCloseBtn = document.getElementById("helpCloseBtn");
 

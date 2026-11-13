@@ -8251,11 +8251,61 @@ function initialiseAiPromptBuilder() {
     } else {
       fallbackCopy();
     }
+ 
   });
+
+  // B5.3d.1 — Reset the AI wizard whenever its window closes.
+  var aiDialog = document.getElementById("aiGuidanceDialog");
+
+  if (aiDialog) {
+    aiDialog.addEventListener("close", function () {
+
+      // Restore all recommended preferences.
+      Object.keys(fields).forEach(function (key) {
+        fields[key].selectedIndex = 0;
+      });
+
+      // Clear the generated or edited prompt.
+      editor.value = "";
+      lastGenerated = "";
+      status.textContent = "";
+
+      // Clear any copy notification and its timer.
+      if (copyFeedbackTimer) {
+        window.clearTimeout(copyFeedbackTimer);
+        copyFeedbackTimer = null;
+      }
+
+      copyFeedback.hidden = true;
+      copyFeedback.textContent = "";
+      copyFeedback.classList.remove("is-error");
+
+      // Clear any pasted CSV and import messages.
+      var csvField = document.getElementById("aiCsvPasteInput");
+      var csvStatus = document.getElementById("aiCsvPasteStatus");
+
+      if (csvField) csvField.value = "";
+      if (csvStatus) csvStatus.textContent = "";
+
+      // Expand the IG warning again.
+      var warning = aiDialog.querySelector(".ai-ig-warning");
+      if (warning) warning.open = true;
+
+      // Collapse the explanatory scenario sections.
+      aiDialog.querySelectorAll(".ai-scenario").forEach(function (item) {
+        item.open = false;
+      });
+
+      // Start at the top of the window next time.
+      aiDialog.scrollTop = 0;
+
+      // Update the Copy and Restore button states.
+      setButtons();
+    });
+  }
 
   setButtons();
 }
-
 
 
 /* B5.3c — Import CSV pasted from an AI chatbot. */

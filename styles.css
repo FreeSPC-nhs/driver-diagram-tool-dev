@@ -2190,3 +2190,108 @@ dialog.quick-colour-dialog::backdrop {
   }
 }
 
+
+/* B5.3a — Optional AI guidance and information-governance safeguards. */
+
+#controlsPanel .ai-assistance {
+  margin: 0.9rem 0 1rem;
+  border: 1px solid #bfd3e5;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+#controlsPanel .ai-assistance > summary {
+  padding: 0.8rem;
+  background: #eef5fc;
+  color: #003b70;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#controlsPanel .ai-assistance > summary span {
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+#controlsPanel .ai-assistance > summary:focus-visible,
+#controlsPanel .ai-scenario > summary:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+#controlsPanel .ai-assistance-content {
+  padding: 0.85rem;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+#controlsPanel .ai-assistance-content > p:first-child {
+  margin-top: 0;
+}
+
+#controlsPanel .ai-assistance-content h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.92rem;
+}
+
+#controlsPanel .ai-ig-warning {
+  padding: 0.75rem;
+  border-left: 4px solid #b42318;
+  border-radius: 5px;
+  background: #fff7f5;
+  color: #3e2422;
+}
+
+#controlsPanel .ai-ig-warning h3 {
+  margin: 0 0 0.5rem;
+  color: #912018;
+}
+
+#controlsPanel .ai-ig-warning p {
+  margin: 0 0 0.6rem;
+}
+
+#controlsPanel .ai-ig-warning p:last-child {
+  margin-bottom: 0;
+}
+
+#controlsPanel .ai-scenarios {
+  display: grid;
+  gap: 0.4rem;
+}
+
+#controlsPanel .ai-scenario {
+  border: 1px solid #cbd9e8;
+  border-radius: 6px;
+}
+
+#controlsPanel .ai-scenario > summary {
+  padding: 0.6rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: #003b70;
+}
+
+#controlsPanel .ai-scenario[open] > summary {
+  background: #eef5fc;
+}
+
+#controlsPanel .ai-scenario > p {
+  margin: 0;
+  padding: 0.65rem;
+}
+
+#controlsPanel .ai-privacy-note,
+#controlsPanel .ai-workflow-note,
+#controlsPanel .ai-next-step {
+  margin: 0.85rem 0;
+}
+
+#controlsPanel .ai-guidance-links a {
+  color: #005eb8;
+  text-decoration: underline;
+}
+

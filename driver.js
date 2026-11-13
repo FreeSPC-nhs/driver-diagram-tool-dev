@@ -5029,6 +5029,16 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
         aiDialogInCopy.removeAttribute("open");
       }
 
+      // A portable diagram must never save a user's edited AI prompt.
+      var promptInCopy = htmlClone.querySelector("#aiPromptEditor");
+      if (promptInCopy) {
+        promptInCopy.value = "";
+        promptInCopy.defaultValue = "";
+        promptInCopy.textContent = "";
+      }
+      var promptStatusInCopy = htmlClone.querySelector("#aiPromptStatus");
+      if (promptStatusInCopy) promptStatusInCopy.textContent = "";
+
       /*
         Remove the normal external driver.js reference and any
         older embedded project/application scripts.
@@ -8007,6 +8017,161 @@ function closeNodeContextMenu() {
 /* ---------- Init ---------- */
 
 
+/* B5.3b — Local-only, editable AI prompt builder. */
+function createAiDriverDiagramPrompt(options) {
+  var scenarios = {
+    draft: {
+      heading: "Create an initial draft",
+      purpose: "Use the supplied project documents and context to propose a deliberately provisional driver diagram. It should be recognisable to the group but not appear agreed or finished. Expect substantial discussion and revision.",
+      task: "Identify the stated aim, existing understanding and any ideas the group has already discussed. Organise them into a concise theory of change. Distinguish material drawn from sources from your own suggestions."
+    },
+    synthesis: {
+      heading: "Synthesise existing team thinking",
+      purpose: "Translate an improvement group's engagement findings, fishbone diagram, workshop outputs or other existing understanding into a proposed driver diagram. Faithfully represent the group's thinking, including disagreement.",
+      task: "A fishbone identifies possible causes; a driver diagram expresses what needs to be in place for improvement. Interpret the findings accordingly rather than just renaming fishbone branches. Do not invent agreement or evidence."
+    },
+    explore: {
+      heading: "Explore possible approaches",
+      purpose: "Explore a complex improvement objective to illustrate plausible drivers, possible changes, uncertainties and people who should be engaged. This is NOT an agreed plan or a recommendation to implement interventions.",
+      task: "Where reliable information is available, distinguish it from inference and speculation. Identify stakeholders, dependencies, trade-offs and important missing local information. Do not fabricate citations or claim to have reviewed sources you cannot access."
+    }
+  };
+
+  var wording = {
+    preserve: "Preserve the terminology and language style of the supplied material. Only suggest wording changes separately.",
+    clarify: "Suggest clearer wording where it helps, while retaining the original meaning. Make substantial rewording visible for review.",
+    alternatives: "Offer alternative wording for discussion; do not imply the group has adopted your alternatives."
+  };
+  var measures = {
+    none: "Do not generate measures. Leave measures_json blank in the CSV.",
+    existing: "Include only measures already identified in the source material, and ask which the group wants retained. Do not add new measures.",
+    few: "Propose a very small, selective set of measures, clearly labelled as suggestions for discussion. Ask the user to confirm which to include."
+  };
+  var changes = {
+    existing: "Include only change ideas actually identified in the supplied material. Do not invent additional interventions.",
+    none: "Do not include change ideas at this stage. It is acceptable for the diagram to stop at secondary drivers.",
+    suggest: "Offer a limited number of possible change ideas separately from the group's existing ideas. Ask which, if any, to include."
+  };
+  var colours = {
+    app: "Leave colour values blank. Presentation formatting will be chosen in the Driver Diagram Tool.",
+    branch: "If the user confirms this scheme, assign an accessible six-digit hex colour to each primary driver and its descendants; leave the Aim uncoloured unless asked.",
+    level: "If the user confirms this scheme, assign one accessible six-digit hex colour per level: Aim, primary, secondary and change.",
+    custom: "Before generating CSV, ask the user which six-digit hex colours they want. Do not guess the palette."
+  };
+  var scenario = scenarios[options.scenario] || scenarios.draft;
+
+  return [
+    "AI-ASSISTED DRIVER DIAGRAM — " + scenario.heading,
+    "",
+    "YOUR ROLE AND PURPOSE",
+    scenario.purpose,
+    scenario.task,
+    "This diagram must ultimately reflect the improvement team's own beliefs about how improvement will happen. AI cannot determine that consensus or validate the team's theory of change.",
+    "",
+    "INFORMATION GOVERNANCE",
+    "Do not ask me to paste patient-identifiable, staff-identifiable, other personal or confidential information into an AI service unless its use has been specifically authorised by my organisation for this information and task. Removing names alone may not remove identifiability. If approval is uncertain, prompt me to consult local information-governance guidance first.",
+    "",
+    "WORK WITH ME IN STAGES — DO NOT RUSH AHEAD",
+    "1. Ask what source material and context I can appropriately share using my organisation-approved AI environment. Do not invent details that are absent.",
+    "2. Summarise your understanding, then ask a maximum of three material clarification questions at a time. STOP and wait for my answers. Do not answer your own questions, and do not repeat information already supplied.",
+    "3. Produce a readable, concise draft hierarchy (Aim, primary drivers, secondary drivers, and change ideas only if requested). Distinguish source-derived content from AI suggestions, and highlight important gaps, assumptions, disagreements and missing perspectives outside the diagram.",
+    "4. Invite me to review, correct and refine the wording, relationships and scope. Do not treat a plausible diagram as an agreed improvement plan.",
+    "5. Generate the final CSV ONLY when I explicitly request it. Do not automatically move from the draft to CSV.",
+    "",
+    "CONTENT PREFERENCES",
+    "Wording: " + (wording[options.wording] || wording.preserve),
+    "Measures: " + (measures[options.measures] || measures.none),
+    "Change ideas: " + (changes[options.changes] || changes.existing),
+    "Colour formatting: " + (colours[options.colours] || colours.app),
+    "Keep the number of drivers and changes manageable. Avoid bland or generic management language. A polished-looking diagram is not evidence of validity.",
+    "",
+    "CSV OUTPUT CONTRACT (ONLY WHEN I REQUEST CSV)",
+    "Return only one fenced csv code block, with exactly these headers, in exactly this order:",
+    "id,level,parent_id,text,color,extra_parents,measures_json",
+    "Use exactly one aim row with a blank parent_id. Valid levels are aim, primary, secondary and change. Give each row a unique sequential numeric ID starting at 1. Each primary has the Aim as parent, each secondary has a primary as parent and each change has a secondary as parent.",
+    "Maintain the reviewed ordering and wording. No self-connections, missing parents or cycles. Use extra_parents only for genuine additional connections we have explicitly agreed; use semicolon-separated IDs.",
+    "Leave optional fields blank unless requested or agreed. If including measures, encode measures_json as a JSON array of objects containing type and text. Permitted types: outcome, process, balancing and none. Use CSV double-quote escaping correctly, including quoted JSON cells, commas and line breaks.",
+    "Do not include auto_size: the app enables automatic sizing by default. Do not introduce extra columns. Check the CSV against these rules before sending it.",
+    "",
+    "FIRST RESPONSE",
+    "Briefly explain what you need from me for this scenario. Ask up to three essential questions, then STOP and wait for my answers."
+  ].join("\n");
+}
+
+function initialiseAiPromptBuilder() {
+  var editor = document.getElementById("aiPromptEditor");
+  var makeButton = document.getElementById("aiBuildPrompt");
+  var resetButton = document.getElementById("aiResetPrompt");
+  var copyButton = document.getElementById("aiCopyPrompt");
+  var status = document.getElementById("aiPromptStatus");
+  if (!editor || !makeButton || !resetButton || !copyButton || !status) return;
+
+  var fields = {
+    scenario: document.getElementById("aiPromptScenario"),
+    wording: document.getElementById("aiPromptWording"),
+    measures: document.getElementById("aiPromptMeasures"),
+    changes: document.getElementById("aiPromptChanges"),
+    colours: document.getElementById("aiPromptColours")
+  };
+  if (Object.keys(fields).some(function (key) { return !fields[key]; })) return;
+
+  var lastGenerated = "";
+  function proposedText() {
+    var options = {};
+    Object.keys(fields).forEach(function (key) { options[key] = fields[key].value; });
+    return createAiDriverDiagramPrompt(options);
+  }
+  function setButtons() {
+    copyButton.disabled = !editor.value.trim();
+    resetButton.disabled = !lastGenerated;
+  }
+  function replacePrompt(confirmEdits) {
+    if (confirmEdits && editor.value.trim() && editor.value !== lastGenerated &&
+        !window.confirm("Replace your edited prompt with the recommended wording?")) {
+      return;
+    }
+    lastGenerated = proposedText();
+    editor.value = lastGenerated;
+    status.textContent = "Prompt created. Review and edit it before copying.";
+    setButtons();
+  }
+
+  makeButton.addEventListener("click", function () { replacePrompt(true); });
+  resetButton.addEventListener("click", function () { replacePrompt(true); });
+  editor.addEventListener("input", function () {
+    status.textContent = "Your edits are kept until you choose to replace them.";
+    setButtons();
+  });
+  Object.keys(fields).forEach(function (key) {
+    fields[key].addEventListener("change", function () {
+      status.textContent = editor.value.trim()
+        ? "Preferences changed. Select Create / update prompt to apply them; your text has not been overwritten."
+        : "Preferences ready. Select Create / update prompt.";
+    });
+  });
+
+  function fallbackCopy() {
+    editor.focus();
+    editor.select();
+    var success = false;
+    try { success = document.execCommand("copy"); } catch (error) { success = false; }
+    status.textContent = success
+      ? "Prompt copied. Paste it only into an AI service authorised for your task and information."
+      : "Automatic copying was blocked. Select all the prompt text and copy it manually.";
+  }
+  copyButton.addEventListener("click", function () {
+    if (!editor.value.trim()) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(editor.value).then(function () {
+        status.textContent = "Prompt copied. Paste it only into an AI service authorised for your task and information.";
+      }).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
+  });
+  setButtons();
+}
+
 document.addEventListener("DOMContentLoaded", function () {
 
 /* B4.1b.1 — Refresh lines after browser zoom or resizing. */
@@ -8147,9 +8312,7 @@ document.addEventListener("keydown", function (e) {
 });
 
 
-
-  /* B5.3a.1 — Connect the AI guidance modal. */
-
+  /* B5.3a.1 — AI guidance modal: move and connect existing guidance. */
   var aiPanel = document.getElementById("aiAssistancePanel");
   var aiDialog = document.getElementById("aiGuidanceDialog");
   var aiContent = document.getElementById("aiGuidanceContent");
@@ -8157,12 +8320,10 @@ document.addEventListener("keydown", function (e) {
   var aiClose = document.getElementById("btnCloseAiGuidance");
 
   if (aiPanel && aiDialog && aiContent && aiTrigger && aiClose) {
-
-    // Move existing guidance from the sidebar into the modal.
+    // The actual guidance content is retained; no duplicate text or warning.
     aiContent.appendChild(aiPanel);
     aiPanel.open = true;
 
-    // Open the window.
     aiTrigger.addEventListener("click", function () {
       if (!aiDialog.open) {
         aiDialog.showModal();
@@ -8170,22 +8331,19 @@ document.addEventListener("keydown", function (e) {
       }
     });
 
-    // Close using the X button.
     aiClose.addEventListener("click", function () {
       aiDialog.close();
     });
 
-    // Also handles Escape and returns keyboard focus.
+    // Also handles Escape, which closes a native <dialog>.
     aiDialog.addEventListener("close", function () {
       aiTrigger.focus();
     });
 
-    // Clicking the dark area outside also closes the window.
+    // Optional click on the dark backdrop closes the window.
     aiDialog.addEventListener("click", function (event) {
       if (event.target !== aiDialog) return;
-
       var rect = aiDialog.getBoundingClientRect();
-
       if (event.clientX < rect.left ||
           event.clientX > rect.right ||
           event.clientY < rect.top ||
@@ -8195,8 +8353,9 @@ document.addEventListener("keydown", function (e) {
     });
   }
 
-  var btnHelp = document.getElementById("btnHelp");
+  initialiseAiPromptBuilder();
 
+  var btnHelp = document.getElementById("btnHelp");
   var helpOverlay = document.getElementById("helpOverlay");
   var helpCloseBtn = document.getElementById("helpCloseBtn");
 

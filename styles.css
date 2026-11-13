@@ -2411,3 +2411,73 @@ dialog.quick-colour-dialog::backdrop {
   }
 }
 
+
+
+/* B5.3b — Prompt builder inside AI guidance modal. */
+#aiGuidanceDialog .ai-prompt-builder {
+  margin: 1rem 0;
+  padding: clamp(12px, 2vw, 20px);
+  border: 1px solid #b8cce3;
+  border-radius: 8px;
+  background: #f7faff;
+}
+#aiGuidanceDialog .ai-prompt-builder > h3 { margin-top: 0; }
+#aiGuidanceDialog .ai-builder-privacy {
+  padding: 0.7rem;
+  border-left: 3px solid #b42318;
+  background: #fff7f5;
+}
+#aiGuidanceDialog .ai-builder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem 1rem;
+  margin: 0.9rem 0;
+}
+#aiGuidanceDialog .ai-builder-grid > div { min-width: 0; }
+#aiGuidanceDialog .ai-builder-grid label,
+#aiGuidanceDialog label[for="aiPromptEditor"] {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+#aiGuidanceDialog .ai-builder-grid select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 0.4rem;
+  border: 1px solid #9aaabd;
+  border-radius: 5px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+}
+#aiGuidanceDialog .ai-builder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+#aiGuidanceDialog .ai-builder-actions button { min-height: 40px; }
+#aiGuidanceDialog #aiPromptEditor {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 280px;
+  padding: 0.75rem;
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  background: #fff;
+  color: #111;
+  font: 0.88rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  resize: vertical;
+}
+#aiGuidanceDialog .ai-builder-status { min-height: 1.2em; color: #334155; }
+#aiGuidanceDialog .ai-builder-footnote { font-size: 0.83rem; color: #475569; }
+#aiGuidanceDialog .ai-prompt-builder :focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+@media (max-width: 650px) {
+  #aiGuidanceDialog .ai-builder-grid { grid-template-columns: minmax(0, 1fr); }
+  #aiGuidanceDialog .ai-builder-actions button { width: 100%; }
+}

@@ -454,8 +454,10 @@
         group's own understanding and decisions.
       </p>
 
-      <section class="ai-ig-warning" role="note" aria-labelledby="aiIgTitle">
-        <h3 id="aiIgTitle">Important: protect confidential information</h3>
+       <!-- Open by default, but users can collapse this warning. -->
+      <details class="ai-ig-warning" open>
+        <summary>Important: protect confidential information</summary>
+        <div class="ai-ig-warning-content">
         <p>
           <strong>Do not paste or upload patient-identifiable,
           staff-identifiable, other personal or confidential information</strong>
@@ -473,7 +475,8 @@
           every use case. Follow your local IG and AI policies. If unsure,
           ask your IG lead, Data Protection Officer or Caldicott Guardian.
         </p>
-      </section>
+        </div>
+      </details>
 
       <p class="ai-privacy-note">
         <strong>What this tool does:</strong> This panel provides guidance only.
@@ -582,6 +585,8 @@
           <button type="button" id="aiCopyPrompt" class="secondary" disabled>
             Copy prompt
           </button>
+          <span id="aiCopyFeedback" class="ai-copy-feedback"
+                aria-hidden="true" hidden></span>
         </div>
 
         <label for="aiPromptEditor">Review and edit your prompt</label>
@@ -589,11 +594,54 @@
           spellcheck="true" placeholder="Select Create / update prompt above."></textarea>
         <p class="ai-builder-status" id="aiPromptStatus" role="status"
           aria-live="polite"></p>
+
         <p class="ai-builder-footnote">
           Changing a preference does not overwrite your edits. Select
           <strong>Create / update prompt</strong> to apply your choices.
-          The AI should ask questions and wait for your answers before drafting;
-          it should generate CSV only when you explicitly request it.
+          The AI should ask questions and wait for your answers before drafting.
+          Once you are happy with the draft, choose the CSV option when offered,
+          or tell the chatbot <strong>"Generate the CSV now"</strong>.
+          Copy the CSV output into <strong>Paste your diagram CSV</strong>
+          below; you do not need to create a separate file.
+        </p>
+      </section>
+
+      <!-- B5.3c — Paste AI-generated CSV without making a file. -->
+      <section class="ai-csv-paste" aria-labelledby="aiCsvPasteHeading">
+        <h3 id="aiCsvPasteHeading">Paste your diagram CSV</h3>
+
+        <p>
+          When you're happy with the draft, ask your AI chatbot to generate
+          the importable CSV. Copy its CSV response and paste it below.
+          You may include the surrounding <strong>```csv</strong> code fence.
+        </p>
+
+        <label for="aiCsvPasteInput">AI-generated CSV</label>
+
+        <textarea id="aiCsvPasteInput"
+                  rows="8"
+                  spellcheck="false"
+                  placeholder="id,level,parent_id,text,color,extra_parents,measures_json"></textarea>
+
+        <div class="ai-builder-actions">
+          <button type="button" id="aiImportPastedCsv">
+            Import pasted CSV
+          </button>
+
+          <button type="button" id="aiClearPastedCsv" class="secondary">
+            Clear
+          </button>
+        </div>
+
+        <p id="aiCsvPasteStatus"
+           role="status"
+           aria-live="polite"></p>
+
+        <p class="ai-csv-safety">
+          <strong>Before importing:</strong> save your existing diagram if
+          needed. A successful import replaces it. Only paste diagram CSV,
+          not meeting notes, chatbot conversations or confidential information.
+          The usual CSV validation checks will run before anything is replaced.
         </p>
       </section>
 
@@ -948,7 +996,9 @@
       Use only an AI service authorised by your organisation for the intended
       information and task. Review any AI-generated theory of change with the
       improvement group; the group retains ownership of the diagram.
-    </p>
+      Once the chatbot has produced CSV, copy the CSV into the
+      <strong>Paste your diagram CSV</strong> section of the AI guidance
+      window and select <strong>Import pasted CSV</strong>.    </p>
 
     <h3>Information governance</h3>
 

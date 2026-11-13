@@ -2245,11 +2245,21 @@ dialog.quick-colour-dialog::backdrop {
   color: #3e2422;
 }
 
-#aiGuidanceDialog .ai-ig-warning h3 {
-  margin: 0 0 0.5rem;
+#aiGuidanceDialog .ai-ig-warning > summary {
+  padding: 0.1rem 0;
+  font-weight: 700;
   color: #912018;
+  cursor: pointer;
 }
 
+#aiGuidanceDialog .ai-ig-warning > summary:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 3px;
+}
+
+#aiGuidanceDialog .ai-ig-warning-content {
+  padding-top: 0.65rem;
+}
 #aiGuidanceDialog .ai-ig-warning p {
   margin: 0 0 0.6rem;
 }
@@ -2481,3 +2491,65 @@ dialog.quick-colour-dialog::backdrop {
   #aiGuidanceDialog .ai-builder-grid { grid-template-columns: minmax(0, 1fr); }
   #aiGuidanceDialog .ai-builder-actions button { width: 100%; }
 }
+
+
+/* B5.3b.1 — Copy prompt confirmation. */
+
+#aiGuidanceDialog .ai-copy-feedback {
+  align-self: center;
+  padding: 0.35rem 0;
+  color: #007f3b;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+#aiGuidanceDialog .ai-copy-feedback.is-error {
+  color: #a61911;
+}
+
+#aiGuidanceDialog .ai-copy-feedback[hidden] {
+  display: none !important;
+}
+
+/* B5.3c — Paste AI-generated CSV. */
+
+#aiGuidanceDialog .ai-csv-paste {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 2px solid #d6e4f2;
+}
+
+#aiGuidanceDialog #aiCsvPasteInput {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 170px;
+  padding: 0.75rem;
+
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+
+  color: #111827;
+  background: #ffffff;
+
+  font: 0.85rem/1.5 ui-monospace,
+        SFMono-Regular, Consolas, monospace;
+
+  resize: vertical;
+}
+
+#aiGuidanceDialog #aiCsvPasteStatus {
+  min-height: 1.2em;
+  color: #334155;
+}
+
+#aiGuidanceDialog .ai-csv-safety {
+  font-size: 0.83rem;
+  color: #475569;
+}
+
+#aiGuidanceDialog .ai-csv-paste :focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+

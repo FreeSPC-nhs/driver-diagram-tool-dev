@@ -5036,8 +5036,35 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
         promptInCopy.defaultValue = "";
         promptInCopy.textContent = "";
       }
+
       var promptStatusInCopy = htmlClone.querySelector("#aiPromptStatus");
       if (promptStatusInCopy) promptStatusInCopy.textContent = "";
+
+      // Clear temporary copy feedback in saved HTML.
+      var copyFeedbackInCopy =
+        htmlClone.querySelector("#aiCopyFeedback");
+
+      if (copyFeedbackInCopy) {
+        copyFeedbackInCopy.hidden = true;
+        copyFeedbackInCopy.textContent = "";
+      }
+
+      // Never preserve pasted CSV in an editable HTML copy.
+      var pastedCsvInCopy =
+        htmlClone.querySelector("#aiCsvPasteInput");
+
+      if (pastedCsvInCopy) {
+        pastedCsvInCopy.value = "";
+        pastedCsvInCopy.defaultValue = "";
+        pastedCsvInCopy.textContent = "";
+      }
+
+      var pastedCsvStatusInCopy =
+        htmlClone.querySelector("#aiCsvPasteStatus");
+
+      if (pastedCsvStatusInCopy) {
+        pastedCsvStatusInCopy.textContent = "";
+      }
 
       /*
         Remove the normal external driver.js reference and any
@@ -5615,11 +5642,16 @@ function validateDiagramCsvStructuredFields(rows, errors) {
   });
 }
 
-function uploadCsv(file) {
-  if (activeOutlineTextEdit) {
+function uploadCsv(file, onFinished) {
+    if (activeOutlineTextEdit) {
     alert(
       "Save or cancel the Outline text edit before opening another CSV."
     );
+
+    if (typeof onFinished === "function") {
+      onFinished(false);
+    }
+
     return;
   }
 
@@ -5643,6 +5675,10 @@ function uploadCsv(file) {
             ? "\n...and " + (errors.length - 8) + " more issue(s)."
             : "")
         );
+
+        if (typeof onFinished === "function") {
+          onFinished(false);
+        }
 
         return;
       }
@@ -5884,6 +5920,10 @@ diagramAppearance.connectionStyle =
       updateAllViews();
 
       alert("Loaded " + nodes.length + " items from CSV.");
+
+      if (typeof onFinished === "function") {
+        onFinished(true, nodes.length);
+      }
     },
 
     error: function (error) {
@@ -5893,8 +5933,11 @@ diagramAppearance.connectionStyle =
           ? error.message
           : "Please check the selected file.")
       );
-    }
-  });
+
+      if (typeof onFinished === "function") {
+        onFinished(false);
+      }
+    }  });
 }
 
 
@@ -8075,8 +8118,9 @@ function createAiDriverDiagramPrompt(options) {
     "1. Ask what source material and context I can appropriately share using my organisation-approved AI environment. Do not invent details that are absent.",
     "2. Summarise your understanding, then ask a maximum of three material clarification questions at a time. STOP and wait for my answers. Do not answer your own questions, and do not repeat information already supplied.",
     "3. Produce a readable, concise draft hierarchy (Aim, primary drivers, secondary drivers, and change ideas only if requested). Distinguish source-derived content from AI suggestions, and highlight important gaps, assumptions, disagreements and missing perspectives outside the diagram.",
-    "4. Invite me to review, correct and refine the wording, relationships and scope. Do not treat a plausible diagram as an agreed improvement plan.",
-    "5. Generate the final CSV ONLY when I explicitly request it. Do not automatically move from the draft to CSV.",
+
+    "4. Invite me to review, correct and refine the wording, relationships and scope. Do not treat a plausible diagram as an agreed improvement plan. At the END of every draft or revised draft, ask: 'Would you like to refine the diagram further, or generate an importable CSV from the current draft?' Then STOP and wait for my choice.",
+    "5. If I choose to generate/export CSV, or say 'Generate the CSV now' or equivalent, treat that as my explicit request. Immediately output the CSV in your NEXT response using the contract below. Do not reopen general discussion or ask another review question, unless one essential detail would make the CSV invalid. If I choose refinement, help revise and then offer the same two choices again.",
     "",
     "CONTENT PREFERENCES",
     "Wording: " + (wording[options.wording] || wording.preserve),
@@ -8104,8 +8148,10 @@ function initialiseAiPromptBuilder() {
   var resetButton = document.getElementById("aiResetPrompt");
   var copyButton = document.getElementById("aiCopyPrompt");
   var status = document.getElementById("aiPromptStatus");
-  if (!editor || !makeButton || !resetButton || !copyButton || !status) return;
+  var copyFeedback = document.getElementById("aiCopyFeedback");
 
+  if (!editor || !makeButton || !resetButton ||
+      !copyButton || !status || !copyFeedback) return;
   var fields = {
     scenario: document.getElementById("aiPromptScenario"),
     wording: document.getElementById("aiPromptWording"),
@@ -8150,29 +8196,145 @@ function initialiseAiPromptBuilder() {
     });
   });
 
-  function fallbackCopy() {
-    editor.focus();
-    editor.select();
-    var success = false;
-    try { success = document.execCommand("copy"); } catch (error) { success = false; }
+  
+  // Display a visible confirmation beside Copy prompt.
+  var copyFeedbackTimer = null;
+
+  function reportCopy(success) {
+    if (copyFeedbackTimer) {
+      window.clearTimeout(copyFeedbackTimer);
+    }
+
+    copyFeedback.textContent = success
+      ? "✓ Copied to clipboard"
+      : "Copy blocked — select the text and copy manually";
+
+    copyFeedback.classList.toggle("is-error", !success);
+    copyFeedback.hidden = false;
+
     status.textContent = success
       ? "Prompt copied. Paste it only into an AI service authorised for your task and information."
       : "Automatic copying was blocked. Select all the prompt text and copy it manually.";
+
+    copyFeedbackTimer = window.setTimeout(function () {
+      copyFeedback.hidden = true;
+      copyFeedback.textContent = "";
+    }, 5000);
   }
+
+  function fallbackCopy() {
+    editor.focus();
+    editor.select();
+
+    var success = false;
+
+    try {
+      success = document.execCommand("copy");
+    } catch (error) {
+      success = false;
+    }
+
+    reportCopy(success);
+  }
+
   copyButton.addEventListener("click", function () {
     if (!editor.value.trim()) return;
+
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(editor.value).then(function () {
-        status.textContent = "Prompt copied. Paste it only into an AI service authorised for your task and information.";
+        reportCopy(true);
       }).catch(fallbackCopy);
     } else {
       fallbackCopy();
     }
   });
+
   setButtons();
 }
 
+
+
+/* B5.3c — Import CSV pasted from an AI chatbot. */
+
+function initialiseAiCsvPaste() {
+  var field = document.getElementById("aiCsvPasteInput");
+  var importButton = document.getElementById("aiImportPastedCsv");
+  var clearButton = document.getElementById("aiClearPastedCsv");
+  var status = document.getElementById("aiCsvPasteStatus");
+  var dialog = document.getElementById("aiGuidanceDialog");
+
+  if (!field || !importButton || !clearButton || !status) {
+    return;
+  }
+
+  // Clear pasted text without affecting the current diagram.
+  clearButton.addEventListener("click", function () {
+    field.value = "";
+    status.textContent = "CSV text cleared.";
+    field.focus();
+  });
+
+  importButton.addEventListener("click", function () {
+    var text = field.value.trim();
+
+    if (!text) {
+      status.textContent = "Paste the CSV from your chatbot first.";
+      field.focus();
+      return;
+    }
+
+    // Do not replace the diagram during an unfinished text edit.
+    if (activeDiagramTextEdit || activeOutlineTextEdit) {
+      status.textContent =
+        "Save or cancel your current diagram text edit before importing.";
+      return;
+    }
+
+    // Accept plain CSV or a fenced ```csv block.
+    var match = text.match(/```csv[ \t]*\r?\n([\s\S]*?)\r?\n```/i);
+
+    if (match) {
+      text = match[1].trim();
+    }
+
+    if (!text) {
+      status.textContent = "No CSV rows were found in the pasted text.";
+      return;
+    }
+
+    // Reuse the existing CSV validation and import process.
+    var file = new File(
+      [text],
+      "pasted-driver-diagram.csv",
+      { type: "text/csv" }
+    );
+
+    status.textContent = "Checking pasted CSV...";
+    importButton.disabled = true;
+
+    uploadCsv(file, function (ok) {
+      importButton.disabled = false;
+
+      if (!ok) {
+        status.textContent =
+          "CSV was not imported. The existing diagram is unchanged.";
+        return;
+      }
+
+      // Clear successful imports from the temporary paste area.
+      field.value = "";
+      status.textContent = "CSV imported successfully.";
+
+      // Close the AI window to reveal the imported diagram.
+      if (dialog && dialog.open) {
+        dialog.close();
+      }
+    });
+  });
+}
+
 document.addEventListener("DOMContentLoaded", function () {
+
 
 /* B4.1b.1 — Refresh lines after browser zoom or resizing. */
 
@@ -8354,6 +8516,7 @@ document.addEventListener("keydown", function (e) {
   }
 
   initialiseAiPromptBuilder();
+  initialiseAiCsvPaste();
 
   var btnHelp = document.getElementById("btnHelp");
   var helpOverlay = document.getElementById("helpOverlay");

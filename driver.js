@@ -5021,6 +5021,14 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
         helpOverlay.setAttribute("aria-hidden", "true");
       }
 
+            // Ensure the AI guidance window is closed in saved HTML.
+      var aiDialogInCopy =
+        htmlClone.querySelector("#aiGuidanceDialog");
+
+      if (aiDialogInCopy) {
+        aiDialogInCopy.removeAttribute("open");
+      }
+
       /*
         Remove the normal external driver.js reference and any
         older embedded project/application scripts.

@@ -2193,14 +2193,14 @@ dialog.quick-colour-dialog::backdrop {
 
 /* B5.3a — Optional AI guidance and information-governance safeguards. */
 
-#controlsPanel .ai-assistance {
+#aiGuidanceDialog .ai-assistance {
   margin: 0.9rem 0 1rem;
   border: 1px solid #bfd3e5;
   border-radius: 8px;
   background: #ffffff;
 }
 
-#controlsPanel .ai-assistance > summary {
+#aiGuidanceDialog .ai-assistance > summary {
   padding: 0.8rem;
   background: #eef5fc;
   color: #003b70;
@@ -2210,34 +2210,34 @@ dialog.quick-colour-dialog::backdrop {
   cursor: pointer;
 }
 
-#controlsPanel .ai-assistance > summary span {
+#aiGuidanceDialog .ai-assistance > summary span {
   font-size: 0.8rem;
   font-weight: 400;
 }
 
-#controlsPanel .ai-assistance > summary:focus-visible,
-#controlsPanel .ai-scenario > summary:focus-visible {
+#aiGuidanceDialog .ai-assistance > summary:focus-visible,
+#aiGuidanceDialog .ai-scenario > summary:focus-visible {
   outline: 3px solid #ffbf47;
   outline-offset: 2px;
 }
 
-#controlsPanel .ai-assistance-content {
+#aiGuidanceDialog .ai-assistance-content {
   padding: 0.85rem;
   font-size: 0.86rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
-#controlsPanel .ai-assistance-content > p:first-child {
+#aiGuidanceDialog .ai-assistance-content > p:first-child {
   margin-top: 0;
 }
 
-#controlsPanel .ai-assistance-content h3 {
+#aiGuidanceDialog .ai-assistance-content h3 {
   margin: 1rem 0 0.5rem;
   font-size: 0.92rem;
 }
 
-#controlsPanel .ai-ig-warning {
+#aiGuidanceDialog .ai-ig-warning {
   padding: 0.75rem;
   border-left: 4px solid #b42318;
   border-radius: 5px;
@@ -2245,53 +2245,169 @@ dialog.quick-colour-dialog::backdrop {
   color: #3e2422;
 }
 
-#controlsPanel .ai-ig-warning h3 {
+#aiGuidanceDialog .ai-ig-warning h3 {
   margin: 0 0 0.5rem;
   color: #912018;
 }
 
-#controlsPanel .ai-ig-warning p {
+#aiGuidanceDialog .ai-ig-warning p {
   margin: 0 0 0.6rem;
 }
 
-#controlsPanel .ai-ig-warning p:last-child {
+#aiGuidanceDialog .ai-ig-warning p:last-child {
   margin-bottom: 0;
 }
 
-#controlsPanel .ai-scenarios {
+#aiGuidanceDialog .ai-scenarios {
   display: grid;
   gap: 0.4rem;
 }
 
-#controlsPanel .ai-scenario {
+#aiGuidanceDialog .ai-scenario {
   border: 1px solid #cbd9e8;
   border-radius: 6px;
 }
 
-#controlsPanel .ai-scenario > summary {
+#aiGuidanceDialog .ai-scenario > summary {
   padding: 0.6rem;
   cursor: pointer;
   font-weight: 600;
   color: #003b70;
 }
 
-#controlsPanel .ai-scenario[open] > summary {
+#aiGuidanceDialog .ai-scenario[open] > summary {
   background: #eef5fc;
 }
 
-#controlsPanel .ai-scenario > p {
+#aiGuidanceDialog .ai-scenario > p {
   margin: 0;
   padding: 0.65rem;
 }
 
-#controlsPanel .ai-privacy-note,
-#controlsPanel .ai-workflow-note,
-#controlsPanel .ai-next-step {
+#aiGuidanceDialog .ai-privacy-note,
+#aiGuidanceDialog .ai-workflow-note,
+#aiGuidanceDialog .ai-next-step {
   margin: 0.85rem 0;
 }
 
-#controlsPanel .ai-guidance-links a {
+#aiGuidanceDialog .ai-guidance-links a {
   color: #005eb8;
   text-decoration: underline;
+}
+
+
+/* B5.3a.1 — AI guidance modal */
+
+#aiGuidanceDialog {
+  box-sizing: border-box;
+  width: min(900px, calc(100vw - 28px));
+  max-height: min(88dvh, 920px);
+  padding: 0;
+  overflow: auto;
+
+  border: 1px solid #b8cce3;
+  border-radius: 12px;
+
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+#aiGuidanceDialog::backdrop {
+  background: rgba(15, 23, 42, 0.58);
+}
+
+/* Header and close button */
+
+#aiGuidanceDialog .ai-guidance-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 16px 20px;
+  background: #005eb8;
+  color: #ffffff;
+}
+
+#aiGuidanceDialog .ai-guidance-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #ffffff;
+}
+
+#aiGuidanceDialog #btnCloseAiGuidance {
+  flex-shrink: 0;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+
+  border: 1px solid rgba(255,255,255,0.65);
+  border-radius: 6px;
+  background: transparent;
+  color: #ffffff;
+
+  font-size: 25px;
+  cursor: pointer;
+}
+
+#aiGuidanceDialog #btnCloseAiGuidance:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+#aiGuidanceDialog #btnCloseAiGuidance:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+/* Reuse the existing AI guidance content */
+
+#aiGuidanceDialog .ai-assistance {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+}
+
+/* Hide the old side-panel heading inside the modal. */
+
+#aiGuidanceDialog #aiAssistancePanel > summary {
+  display: none;
+}
+
+#aiGuidanceDialog .ai-assistance-content {
+  padding: clamp(14px, 3vw, 26px);
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+/* Show scenarios in columns on wider screens. */
+
+@media (min-width: 700px) {
+  #aiGuidanceDialog .ai-scenarios {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+/* Adapt the modal for smaller screens. */
+
+@media (max-width: 600px) {
+  #aiGuidanceDialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  #aiGuidanceDialog .ai-guidance-header {
+    padding: 12px 14px;
+  }
+
+  #aiGuidanceDialog .ai-scenarios {
+    grid-template-columns: 1fr;
+  }
 }
 

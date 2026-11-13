@@ -43,7 +43,14 @@
 </button>
 
 
-	<button id="btnHelp">Help</button>      
+	<button id="btnAiGuidance"
+        type="button"
+        aria-haspopup="dialog"
+        aria-controls="aiGuidanceDialog">
+  AI guidance
+</button>
+
+<button id="btnHelp">Help</button>      
 	<button id="btnToggleControls">Hide editing panel</button>
       <button id="toggleLegendBtn">Hide key</button>
       <button id="btnHeaderClear">Start new diagram</button>
@@ -509,7 +516,29 @@
     </section>
   </main>
 
+
+<!-- B5.3a.1 — AI guidance modal -->
+<dialog id="aiGuidanceDialog"
+        aria-labelledby="aiGuidanceTitle">
+
+  <div class="ai-guidance-header">
+    <h2 id="aiGuidanceTitle">
+      AI-assisted diagram development
+    </h2>
+
+    <button type="button"
+            id="btnCloseAiGuidance"
+            aria-label="Close AI guidance">
+      &times;
+    </button>
+  </div>
+
+  <div id="aiGuidanceContent"></div>
+
+</dialog>
+
 <!-- Help modal -->
+
 <div id="helpOverlay" class="modal-overlay" aria-hidden="true">
   <div
     class="modal-dialog"

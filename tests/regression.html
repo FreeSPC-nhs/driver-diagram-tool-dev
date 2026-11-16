@@ -2306,7 +2306,161 @@ tests.push(
 
 );
 
+
+/* B5.4b — Portable HTML privacy and original CSV file upload. */
+
+tests.push(
+
+  ["Portable HTML excludes temporary AI content", async w => {
+    const doc = w.document;
+    const dialog = doc.getElementById("aiGuidanceDialog");
+    const prompt = doc.getElementById("aiPromptEditor");
+    const paste = doc.getElementById("aiCsvPasteInput");
+    const promptStatus = doc.getElementById("aiPromptStatus");
+    const pasteStatus = doc.getElementById("aiCsvPasteStatus");
+    const saveButton = doc.getElementById("btnSavePortable");
+
+    check(dialog && prompt && paste && promptStatus &&
+      pasteStatus && saveButton, "AI or Save controls are missing");
+
+    const before = w.captureDiagramHistoryState();
+    const privatePrompt = "B54B_PRIVATE_PROMPT_DO_NOT_SAVE";
+    const privateCsv = "B54B_PRIVATE_CSV_DO_NOT_SAVE";
+    let capturedBlob = null;
+    let exportError = "";
+
+    const oldCreateUrl = w.URL.createObjectURL;
+    const oldRevokeUrl = w.URL.revokeObjectURL;
+    const oldLinkClick = w.HTMLAnchorElement.prototype.click;
+    const oldAlert = w.alert;
+
+    doc.getElementById("btnAiGuidance").click();
+
+    try {
+      check(dialog.open, "AI guidance dialog did not open");
+
+      // Set both live values and HTML defaults to test saved markup.
+      prompt.value = privatePrompt;
+      prompt.defaultValue = privatePrompt;
+      paste.value = privateCsv;
+      paste.defaultValue = privateCsv;
+      promptStatus.textContent = privatePrompt;
+      pasteStatus.textContent = privateCsv;
+
+      // Capture the generated HTML Blob without downloading a file.
+      w.URL.createObjectURL = function (blob) {
+        capturedBlob = blob;
+        return "blob:b54b-regression";
+      };
+      w.URL.revokeObjectURL = function () {};
+      w.HTMLAnchorElement.prototype.click = function () {};
+      w.alert = function (message) {
+        exportError = String(message);
+      };
+
+      saveButton.click();
+
+      const deadline = Date.now() + 8000;
+      while (!capturedBlob && !exportError && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+
+      check(!!capturedBlob,
+        "Save did not produce HTML: " + (exportError || "timed out"));
+
+      const html = await capturedBlob.text();
+      const savedDoc = new w.DOMParser().parseFromString(
+        html, "text/html"
+      );
+      const savedData = savedDoc.getElementById("embeddedProjectData");
+
+      check(!html.includes(privatePrompt) &&
+        !html.includes(privateCsv),
+        "Temporary AI text leaked into the saved HTML");
+      check(savedData, "Saved HTML has no embedded diagram data");
+      check(savedDoc.getElementById("portableDriverSource"),
+        "Saved HTML has no embedded application code");
+
+      const savedDialog =
+        savedDoc.getElementById("aiGuidanceDialog");
+
+      check(savedDialog && !savedDialog.hasAttribute("open"),
+        "Saved HTML kept the AI modal open");
+
+      const project = JSON.parse(savedData.textContent);
+      check(project.nodes.length === w.nodes.length,
+        "Saved diagram lost elements");
+      check(project.nodes[0].text === w.nodes[0].text,
+        "Saved diagram changed the Aim");
+      check(w.captureDiagramHistoryState() === before,
+        "Saving HTML changed the working diagram");
+
+    } finally {
+      w.URL.createObjectURL = oldCreateUrl;
+      w.URL.revokeObjectURL = oldRevokeUrl;
+      w.HTMLAnchorElement.prototype.click = oldLinkClick;
+      w.alert = oldAlert;
+
+      if (dialog.open) {
+        dialog.close();
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+    }
+  }],
+
+  ["Original CSV file input still imports", async w => {
+    const input = w.document.getElementById("uploadCsvInput");
+    check(input, "Open saved file input is missing");
+
+    const csv = [
+      'id,level,parent_id,text',
+      '1,aim,,"Imported through file input"',
+      '2,primary,1,"A driver, with a comma"',
+      '3,secondary,2,"A connected secondary"'
+    ].join("\n");
+
+    const file = new w.File([csv], "regression-test.csv", {
+      type: "text/csv"
+    });
+    const transfer = new w.DataTransfer();
+    transfer.items.add(file);
+    input.files = transfer.files;
+
+    const oldAlert = w.alert;
+    let message = "";
+
+    try {
+      w.alert = text => { message = String(text); };
+      input.dispatchEvent(new w.Event("change", { bubbles: true }));
+
+      const deadline = Date.now() + 8000;
+      while (!message && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+
+      check(message.includes("Loaded 3 items from CSV"),
+        "File input did not complete: " + (message || "timed out"));
+      check(w.nodes.length === 3,
+        "File upload created the wrong number of elements");
+      check(w.nodes[1].text === "A driver, with a comma",
+        "Quoted text was not preserved");
+      check(w.nodes[2].parentId === "2",
+        "File upload lost the parent relationship");
+      check(w.nodes.every(n => n.autoSize),
+        "File upload did not default auto-size to on");
+      check(input.value === "",
+        "File input was not cleared after import");
+
+    } finally {
+      w.alert = oldAlert;
+      input.value = "";
+    }
+  }]
+
+);
+
 // Run all tests in sequence.
+
 
 
 

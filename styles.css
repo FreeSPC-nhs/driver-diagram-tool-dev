@@ -2553,3 +2553,90 @@ dialog.quick-colour-dialog::backdrop {
   outline-offset: 2px;
 }
 
+
+/* B5.5b — Visual 24-colour picker from an element menu. */
+
+dialog.quick-colour-dialog {
+  width: min(770px, calc(100vw - 24px));
+}
+
+.quick-colour-dialog .quick-colour-instructions {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.quick-colour-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+
+.quick-colour-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: #fff;
+  color: #212b32;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.quick-colour-tile:hover {
+  border-color: #005eb8;
+  background: #eef5fc;
+}
+
+.quick-colour-tile-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.quick-colour-tile-name {
+  min-height: 2.5em;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.quick-colour-custom {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.quick-colour-custom summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 620px) {
+  .quick-colour-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  dialog.quick-colour-dialog {
+    padding: 12px;
+  }
+
+  .quick-colour-tile-swatch {
+    min-height: 46px;
+    font-size: 10px;
+  }
+}
+
+

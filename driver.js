@@ -899,38 +899,11 @@ function isColorEditorDirty() {
 }
 
 
-/* B5.5a — Choosing a preset fills the existing Add colour form.
-   Nothing is added to Your colours until Add colour is clicked. */
-function applyColorPresetSelection() {
-  var select = document.getElementById("colorPresetSelect");
-  var elements = getColorEditorElements();
-
-  if (!select || !elements.labelInput || !elements.valueInput ||
-      editingColorValue) return;
-
-  var value = select.value;
-  var isCustom = value === "custom";
-  var isPreset = !!value && !isCustom;
-
-  if (isPreset) {
-    elements.labelInput.value =
-      select.options[select.selectedIndex].dataset.colorLabel || "";
-    elements.valueInput.value = value;
-  } else {
-    elements.labelInput.value = "";
-    elements.valueInput.value = defaultNewColorValue;
-  }
-
-  elements.labelInput.disabled = !isCustom;
-  elements.valueInput.disabled = !isCustom;
-
-  updateColorEditorUi();
-}
 
 function updateColorEditorUi() {
   var elements = getColorEditorElements();
   var option = findColorOptionByValue(editingColorValue);
-  var presetSelect = document.getElementById("colorPresetSelect");
+  
 
   /*
     If the colour no longer exists, return safely to
@@ -957,17 +930,15 @@ function updateColorEditorUi() {
       While editing, Save changes remains disabled until
       something has actually changed.
     */
-       elements.saveButton.disabled = isEditing
-      ? !isColorEditorDirty()
-      : !presetSelect || !presetSelect.value ||
-        !(elements.labelInput.value || "").trim();
+       elements.saveButton.disabled =
+      isEditing && !isColorEditorDirty();
   }
 
   if (elements.cancelButton) {
     elements.cancelButton.hidden = !isEditing;
   }
 
-  if (presetSelect) presetSelect.disabled = isEditing;
+  
 }
 
 function handleColorEditorInput() {
@@ -999,20 +970,13 @@ function resetColorEditorForm() {
 
   editingColorValue = null;
 
-  var presetSelect = document.getElementById("colorPresetSelect");
-  if (presetSelect) {
-    presetSelect.value = "";
-    presetSelect.disabled = false;
-  }
 
   if (elements.labelInput) {
-    elements.labelInput.disabled = true;
     elements.labelInput.value = "";
   }
 
   if (elements.valueInput) {
     elements.valueInput.value = defaultNewColorValue;
-    elements.valueInput.disabled = true;
   }
 
   setColorEditorStatus("");
@@ -1045,18 +1009,12 @@ function beginColorEdit(value) {
 
   editingColorValue = option.value;
 
-  // Existing colours remain editable through the custom controls.
-  var presetSelect = document.getElementById("colorPresetSelect");
-  if (presetSelect) presetSelect.value = "custom";
-
   if (elements.labelInput) {
     elements.labelInput.value = option.label;
-    elements.labelInput.disabled = false;
   }
 
   if (elements.valueInput) {
     elements.valueInput.value = option.value;
-    elements.valueInput.disabled = false;
   }
   updateColorEditorUi();
 
@@ -1083,15 +1041,10 @@ function cancelColorEdit() {
 }
 
 function initialiseColorEditor() {
-  var presetSelect = document.getElementById("colorPresetSelect");
-
-  if (presetSelect) {
-    presetSelect.addEventListener("change", applyColorPresetSelection);
-  }
-
   resetColorEditorForm();
   renderColorOptionsList();
 }
+
 function refreshColorSelect() {
   var select = document.getElementById("nodeColor");
   if (!select) return;
@@ -6442,7 +6395,7 @@ function buildOutlineActionControls(node) {
     option("Current colour (" + node.color + ")", node.color);
   }
 
-  option("+ Create a named colour…", "__outline_new_colour__");
+  option("+ Add from standard palette…", "__outline_new_colour__");
   colourSelect.value = node.color || "";
 
   colourSelect.addEventListener("change", function (event) {
@@ -7430,7 +7383,7 @@ function showInlineColourMenu(nodeId, trigger) {
     });
   });
 
-  addChoice("+ New colour…", null, function () {
+  addChoice("+ Add from standard palette…", null, function () {
     openQuickColourDialogForNode(nodeId);
   });
 
@@ -7486,6 +7439,41 @@ function showInlineColourMenu(nodeId, trigger) {
   if (first) first.focus();
 }
 
+
+/* B5.5b — 24 standard colours for the visual element picker. */
+var standardDiagramColours = [
+  { label: "NHS Dark Blue", value: "#003087" },
+  { label: "NHS Blue", value: "#005EB8" },
+  { label: "NHS Aqua Green", value: "#00A499" },
+  { label: "NHS Purple", value: "#330072" },
+  { label: "NHS Pink", value: "#AE2573" },
+  { label: "NHS Dark Grey", value: "#425563" },
+
+  { label: "NHS Bright Blue", value: "#0072CE" },
+  { label: "NHS Light Blue", value: "#41B6E6" },
+  { label: "NHS Green", value: "#009639" },
+  { label: "NHS Orange", value: "#ED8B00" },
+  { label: "NHS Warm Yellow", value: "#FFB81C" },
+  { label: "NHS Mid Grey", value: "#768692" },
+
+  { label: "Soft Blue", value: "#D9E8F5" },
+  { label: "Soft Aqua", value: "#D9F1EF" },
+  { label: "Soft Green", value: "#D9EFE1" },
+  { label: "Soft Orange", value: "#FCE5CD" },
+  { label: "Soft Yellow", value: "#FFF4D9" },
+  { label: "Soft Pink", value: "#F7DFEC" },
+
+  { label: "White", value: "#FFFFFF" },
+  { label: "Off White", value: "#F8F9FA" },
+  { label: "Cool Slate", value: "#F0F4F5" },
+  { label: "NHS Pale Grey", value: "#E8EDEE" },
+  { label: "Soft Grey", value: "#AEB7BD" },
+  { label: "NHS Charcoal", value: "#212B32" }
+];
+
+
+
+
 function openQuickColourDialogForNode(nodeId) {
 
   var targetNode = nodes.find(function (n) { return n.id === nodeId; });
@@ -7494,28 +7482,110 @@ function openQuickColourDialogForNode(nodeId) {
   var dialog = document.createElement("dialog");
   dialog.id = "quickColourDialog";
   dialog.className = "quick-colour-dialog";
+  
   dialog.innerHTML =
     '<form id="quickColourForm">' +
-      '<h2 id="quickColourTitle">Create and apply colour</h2>' +
+      '<h2>Add a box colour</h2>' +
       '<p id="quickColourTarget" class="quick-colour-target"></p>' +
-      '<label for="quickColourName">Colour name (optional)</label>' +
-      '<input id="quickColourName" type="text" maxlength="80" ' +
-        'placeholder="e.g. Workforce improvement">' +
-      '<label for="quickColourValue">Choose colour</label>' +
-      '<input id="quickColourValue" type="color">' +
-      '<p id="quickColourError" class="quick-colour-error" role="alert"></p>' +
+      '<p class="quick-colour-instructions">' +
+        'Click a swatch to add it to Your colours and apply it. ' +
+        'If you are editing text, save with the tick to confirm.' +
+      '</p>' +
+      '<div id="quickColourGrid" class="quick-colour-grid" ' +
+        'role="group" aria-label="24 standard colours"></div>' +
+      '<details class="quick-colour-custom">' +
+        '<summary>Custom colour…</summary>' +
+        '<label for="quickColourName">Colour name (optional)</label>' +
+        '<input id="quickColourName" type="text" maxlength="80" ' +
+          'placeholder="e.g. Workforce improvement">' +
+        '<label for="quickColourValue">Choose colour</label>' +
+        '<input id="quickColourValue" type="color">' +
+        '<p id="quickColourError" class="quick-colour-error" ' +
+          'role="alert"></p>' +
+        '<div class="quick-colour-actions">' +
+          '<button type="submit">Save and apply custom colour</button>' +
+        '</div>' +
+      '</details>' +
       '<div class="quick-colour-actions">' +
-        '<button type="button" class="secondary" id="quickColourCancel">Cancel</button>' +
-        '<button type="submit">Save and apply</button>' +
+        '<button type="button" class="secondary" ' +
+          'id="quickColourCancel">Cancel</button>' +
       '</div>' +
     '</form>';
+
+
 
   var nameInput = dialog.querySelector("#quickColourName");
   var colourInput = dialog.querySelector("#quickColourValue");
   var errorText = dialog.querySelector("#quickColourError");
   dialog.querySelector("#quickColourTarget").textContent =
     "Selected element: " + targetNode.text;
+  
   colourInput.value = defaultNewColorValue;
+
+  // Build the visual 24-colour palette.
+  // Colours are only added to Your colours when chosen.
+  var grid = dialog.querySelector("#quickColourGrid");
+
+  standardDiagramColours.forEach(function (preset) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "quick-colour-tile";
+    button.title =
+      "Add and apply " + preset.label + " (" + preset.value + ")";
+    button.setAttribute("aria-label", button.title);
+
+    var swatch = document.createElement("span");
+    swatch.className = "quick-colour-tile-swatch";
+    swatch.style.backgroundColor = preset.value;
+    swatch.style.color =
+      getContrastingTextColor(preset.value);
+    swatch.textContent = preset.value;
+    swatch.setAttribute("aria-hidden", "true");
+
+    var name = document.createElement("span");
+    name.className = "quick-colour-tile-name";
+    name.textContent = preset.label;
+    name.setAttribute("aria-hidden", "true");
+
+    button.appendChild(swatch);
+    button.appendChild(name);
+
+    button.addEventListener("click", function () {
+      var current = nodes.find(function (n) {
+        return n.id === nodeId;
+      });
+
+      if (!current) return;
+
+      var value = preset.value.toLowerCase();
+      var alreadyAdded = findColorOptionByValue(value);
+
+      var newOption = alreadyAdded ? null : {
+        label: preset.label,
+        value: value
+      };
+
+      if (activeDiagramTextEdit &&
+          activeDiagramTextEdit.id === nodeId) {
+
+        // Do not commit a new colour until the edit is saved.
+        previewInlineColour(nodeId, value, newOption);
+
+      } else {
+        // Add once, then apply to the chosen element.
+        if (newOption) colorOptions.push(newOption);
+
+        current.color = value;
+        updateAllViews();
+      }
+
+      dialog.close();
+    });
+
+    grid.appendChild(button);
+  });
+
+
 
   dialog.querySelector("#quickColourCancel").addEventListener("click", function () {
     dialog.close();
@@ -7593,9 +7663,11 @@ function openQuickColourDialogForNode(nodeId) {
     }
   });
 
-  document.body.appendChild(dialog);
+    document.body.appendChild(dialog);
   dialog.showModal();
-  nameInput.focus();
+
+  var firstSwatch = grid.querySelector("button");
+  if (firstSwatch) firstSwatch.focus();
 }
 
 
@@ -7939,7 +8011,7 @@ function addColorSubmenu(label) {
       separator.className = "quick-colour-menu-divider";
       sub.appendChild(separator);
 
-      addSubItem("＋ New colour…", function () {
+      addSubItem("＋ Add from standard palette…", function () {
         var targetId = n.id;
         closeNodeContextMenu();
         openQuickColourDialogForNode(targetId);

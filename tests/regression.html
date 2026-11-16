@@ -2099,7 +2099,215 @@ tests.push(
 
 );
 
+
+/* B5.4a — AI-assisted workflow and CSV import regression tests. */
+
+// String inputs to PapaParse complete synchronously. Suppress test alerts.
+function importCsvForB54(w, csv) {
+  const originalAlert = w.alert;
+  let message = "";
+  let result = null;
+
+  try {
+    w.alert = text => { message = String(text); };
+    w.uploadCsv(csv, (ok, count) => {
+      result = { ok, count };
+    });
+  } finally {
+    w.alert = originalAlert;
+  }
+
+  check(result !== null, "CSV import did not report its result");
+  return { ...result, message };
+}
+
+// Exercise the actual Paste CSV button. Files use asynchronous FileReader.
+async function pasteCsvForB54(w, csv) {
+  const doc = w.document;
+  const dialog = doc.getElementById("aiGuidanceDialog");
+  const input = doc.getElementById("aiCsvPasteInput");
+  const button = doc.getElementById("aiImportPastedCsv");
+  const trigger = doc.getElementById("btnAiGuidance");
+
+  check(dialog && input && button && trigger,
+    "AI paste controls are missing");
+
+  const originalAlert = w.alert;
+  let message = "";
+
+  try {
+    if (!dialog.open) trigger.click();
+    check(dialog.open, "AI modal did not open");
+
+    w.alert = text => { message = String(text); };
+    input.value = csv;
+    button.click();
+
+    const deadline = Date.now() + 8000;
+    while (button.disabled && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+
+    check(!button.disabled, "Pasted CSV import did not finish");
+    await new Promise(resolve => setTimeout(resolve, 25));
+
+    return { message, dialogOpen: dialog.open };
+  } finally {
+    w.alert = originalAlert;
+    if (dialog.open) {
+      dialog.close();
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }
+}
+
+tests.push(
+
+  ["AI CSV: four-column import with quoted commas", async w => {
+    const csv = [
+      'id,level,parent_id,text',
+      '1,aim,,"Improve learning, safely"',
+      '2,primary,1,"Teams find useful learning"',
+      '3,secondary,2,"Information is clear, timely and accessible"'
+    ].join("\n");
+
+    const result = importCsvForB54(w, csv);
+
+    check(result.ok && result.count === 3,
+      "Basic CSV was not imported");
+    check(w.nodes[0].text === "Improve learning, safely",
+      "Comma in Aim text was lost");
+    check(w.nodes[2].text ===
+      "Information is clear, timely and accessible",
+      "Comma in driver text was lost");
+    check(w.nodes.every(node => node.autoSize === true),
+      "Omitted auto_size did not default to on");
+  }],
+
+  ["AI CSV: colours, measures and extra parents", async w => {
+    const rows = [
+      {id:"1",level:"aim",parent_id:"",text:"Test aim",
+       color:"",extra_parents:"",measures_json:""},
+      {id:"2",level:"primary",parent_id:"1",text:"Primary A",
+       color:"#d9ead3",extra_parents:"",measures_json:""},
+      {id:"3",level:"primary",parent_id:"1",text:"Primary B",
+       color:"#d9ead3",extra_parents:"",measures_json:""},
+      {id:"4",level:"secondary",parent_id:"2",text:"Shared driver",
+       color:"#d9ead3",extra_parents:"3",
+       measures_json:JSON.stringify([
+         {type:"process",text:"Days with a completed plan"}
+       ])}
+    ];
+
+    const result = importCsvForB54(w, w.Papa.unparse(rows));
+
+    check(result.ok && result.count === 4,
+      "Extended CSV was not imported");
+
+    const node = w.nodes.find(n => n.id === "4");
+
+    check(node && node.color === "#d9ead3",
+      "Driver colour was not restored");
+    check(node.measures.length === 1 &&
+      node.measures[0].type === "process" &&
+      node.measures[0].text === "Days with a completed plan",
+      "Process measure was not restored");
+    check(w.connections.some(c =>
+      c.fromId === "3" && c.toId === "4"),
+      "Additional parent connection is missing");
+  }],
+
+  ["AI paste: fenced CSV imports through the modal", async w => {
+    const csv = [
+      '```csv',
+      'id,level,parent_id,text',
+      '1,aim,,"Improve care"',
+      '2,primary,1,"Reliable appointments"',
+      '3,secondary,2,"Appointments are available"',
+      '```'
+    ].join("\n");
+
+    const result = await pasteCsvForB54(w, csv);
+
+    check(result.message.includes("Loaded 3 items"),
+      "No successful paste confirmation appeared");
+    check(w.nodes.length === 3 &&
+      w.nodes[2].text === "Appointments are available",
+      "Pasted CSV did not create the diagram");
+    check(!result.dialogOpen,
+      "AI modal did not close after a successful import");
+  }],
+
+  ["AI paste: invalid CSV preserves the existing diagram", async w => {
+    const before = w.captureDiagramHistoryState();
+
+    const badCsv = [
+      'id,level,parent_id,text',
+      '1,aim,,"Test aim"',
+      '2,primary,999,"Missing parent"'
+    ].join("\n");
+
+    const result = await pasteCsvForB54(w, badCsv);
+
+    check(result.message.includes("CSV import cancelled"),
+      "Invalid pasted CSV was not rejected");
+    check(w.captureDiagramHistoryState() === before,
+      "Rejected paste changed the existing diagram");
+  }],
+
+  ["AI wizard resets without changing the diagram", async w => {
+    const doc = w.document;
+    const dialog = doc.getElementById("aiGuidanceDialog");
+    const scenario = doc.getElementById("aiPromptScenario");
+    const editor = doc.getElementById("aiPromptEditor");
+    const paste = doc.getElementById("aiCsvPasteInput");
+    const warning = doc.querySelector(
+      "#aiGuidanceDialog .ai-ig-warning"
+    );
+    const copy = doc.getElementById("aiCopyPrompt");
+    const restore = doc.getElementById("aiResetPrompt");
+    const before = w.captureDiagramHistoryState();
+
+    check(dialog && scenario && editor && paste && warning &&
+      copy && restore, "AI wizard controls are missing");
+
+    doc.getElementById("btnAiGuidance").click();
+
+    try {
+      scenario.value = "explore";
+      doc.getElementById("aiBuildPrompt").click();
+
+      check(editor.value.includes("Explore possible approaches"),
+        "Selected scenario was not used in the prompt");
+      check(!copy.disabled,
+        "Copy was not enabled after generating");
+
+      editor.value += "\nUser test edit";
+      paste.value = "Temporary test CSV";
+      warning.open = false;
+
+      dialog.close();
+      await new Promise(resolve => setTimeout(resolve, 25));
+
+      check(scenario.value === "draft",
+        "Scenario was not reset");
+      check(editor.value === "" && paste.value === "",
+        "Temporary prompt or CSV text was retained");
+      check(copy.disabled && restore.disabled,
+        "Prompt buttons were not reset");
+      check(warning.open,
+        "IG warning did not reopen");
+      check(w.captureDiagramHistoryState() === before,
+        "Closing the wizard changed the diagram");
+    } finally {
+      if (dialog.open) dialog.close();
+    }
+  }]
+
+);
+
 // Run all tests in sequence.
+
 
 
 

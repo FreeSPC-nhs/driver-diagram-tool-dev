@@ -130,7 +130,33 @@
     Add a new colour
   </h3>
 
+
+  <!-- B5.5a: Standard colours are only added when selected. -->
+  <label for="colorPresetSelect">Choose a colour to add</label>
+  <select id="colorPresetSelect">
+    <option value="">Select from the palette...</option>
+    <option value="#fbdada" data-color-label="Soft pink">
+      Soft pink — #FBDADA
+    </option>
+    <option value="#ffd285" data-color-label="Warm peach">
+      Warm peach — #FFD285
+    </option>
+    <option value="#fffb8f" data-color-label="Soft yellow">
+      Soft yellow — #FFFB8F
+    </option>
+    <option value="#a6ff94" data-color-label="Soft green">
+      Soft green — #A6FF94
+    </option>
+    <option value="custom">Custom colour...</option>
+  </select>
+
+  <p class="small">
+    Choose a palette colour and select <strong>Add colour</strong>.
+    Or choose Custom colour to use your own name and colour.
+  </p>
+
   <label for="colorLabelInput">Colour name</label>
+
   <input
     id="colorLabelInput"
     type="text"

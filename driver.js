@@ -898,9 +898,39 @@ function isColorEditorDirty() {
   );
 }
 
+
+/* B5.5a — Choosing a preset fills the existing Add colour form.
+   Nothing is added to Your colours until Add colour is clicked. */
+function applyColorPresetSelection() {
+  var select = document.getElementById("colorPresetSelect");
+  var elements = getColorEditorElements();
+
+  if (!select || !elements.labelInput || !elements.valueInput ||
+      editingColorValue) return;
+
+  var value = select.value;
+  var isCustom = value === "custom";
+  var isPreset = !!value && !isCustom;
+
+  if (isPreset) {
+    elements.labelInput.value =
+      select.options[select.selectedIndex].dataset.colorLabel || "";
+    elements.valueInput.value = value;
+  } else {
+    elements.labelInput.value = "";
+    elements.valueInput.value = defaultNewColorValue;
+  }
+
+  elements.labelInput.disabled = !isCustom;
+  elements.valueInput.disabled = !isCustom;
+
+  updateColorEditorUi();
+}
+
 function updateColorEditorUi() {
   var elements = getColorEditorElements();
   var option = findColorOptionByValue(editingColorValue);
+  var presetSelect = document.getElementById("colorPresetSelect");
 
   /*
     If the colour no longer exists, return safely to
@@ -927,13 +957,17 @@ function updateColorEditorUi() {
       While editing, Save changes remains disabled until
       something has actually changed.
     */
-    elements.saveButton.disabled =
-      isEditing && !isColorEditorDirty();
+       elements.saveButton.disabled = isEditing
+      ? !isColorEditorDirty()
+      : !presetSelect || !presetSelect.value ||
+        !(elements.labelInput.value || "").trim();
   }
 
   if (elements.cancelButton) {
     elements.cancelButton.hidden = !isEditing;
   }
+
+  if (presetSelect) presetSelect.disabled = isEditing;
 }
 
 function handleColorEditorInput() {
@@ -959,18 +993,26 @@ function handleColorEditorInput() {
   }
 }
 
+
 function resetColorEditorForm() {
   var elements = getColorEditorElements();
 
   editingColorValue = null;
 
+  var presetSelect = document.getElementById("colorPresetSelect");
+  if (presetSelect) {
+    presetSelect.value = "";
+    presetSelect.disabled = false;
+  }
+
   if (elements.labelInput) {
+    elements.labelInput.disabled = true;
     elements.labelInput.value = "";
   }
 
   if (elements.valueInput) {
-    elements.valueInput.value =
-      defaultNewColorValue;
+    elements.valueInput.value = defaultNewColorValue;
+    elements.valueInput.disabled = true;
   }
 
   setColorEditorStatus("");
@@ -1003,14 +1045,19 @@ function beginColorEdit(value) {
 
   editingColorValue = option.value;
 
+  // Existing colours remain editable through the custom controls.
+  var presetSelect = document.getElementById("colorPresetSelect");
+  if (presetSelect) presetSelect.value = "custom";
+
   if (elements.labelInput) {
     elements.labelInput.value = option.label;
+    elements.labelInput.disabled = false;
   }
 
   if (elements.valueInput) {
     elements.valueInput.value = option.value;
+    elements.valueInput.disabled = false;
   }
-
   updateColorEditorUi();
 
   setColorEditorStatus(
@@ -1036,10 +1083,15 @@ function cancelColorEdit() {
 }
 
 function initialiseColorEditor() {
+  var presetSelect = document.getElementById("colorPresetSelect");
+
+  if (presetSelect) {
+    presetSelect.addEventListener("change", applyColorPresetSelection);
+  }
+
   resetColorEditorForm();
   renderColorOptionsList();
 }
-
 function refreshColorSelect() {
   var select = document.getElementById("nodeColor");
   if (!select) return;

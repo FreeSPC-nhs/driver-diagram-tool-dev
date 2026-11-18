@@ -29,20 +29,45 @@
   }
 
   function getReadyDiagram(callback) {
-    if (window.diagramViewMode === "outline" &&
-        typeof window.switchDiagramView === "function") {
-      window.switchDiagramView("diagram");
-    }
+    // Exporting from Outline should not unexpectedly leave the user in Diagram.
+    var restoreOutline = window.diagramViewMode === "outline" &&
+      typeof window.switchDiagramView === "function";
+    if (restoreOutline) window.switchDiagramView("diagram");
     afterTwoFrames(function () {
       var area = document.getElementById("exportArea");
       var canvas = document.getElementById("diagramCanvas");
       var connections = document.getElementById("diagramConnections");
-      if (!area || !canvas || !connections || !area.getBoundingClientRect().width) {
-        notify("The diagram could not be located for this export test.");
-        return;
+      try {
+        if (!area || !canvas || !connections || !area.getBoundingClientRect().width) {
+          throw new Error("The diagram could not be located for this export test.");
+        }
+        callback(area, canvas, connections);
+      } finally {
+        if (restoreOutline) window.switchDiagramView("outline");
       }
-      callback(area, canvas, connections);
     });
+  }
+
+  // Full content bounds, including wide canvases on mobile and measures below
+  // absolutely positioned boxes. A simple getBoundingClientRect() can undercount.
+  function getExportBounds(area) {
+    var outer = area.getBoundingClientRect();
+    var canvas = area.querySelector("#diagramCanvas");
+    var width = Math.max(outer.width, area.scrollWidth,
+      canvas ? canvas.scrollWidth : 0);
+    var height = Math.max(outer.height, area.scrollHeight);
+    area.querySelectorAll(
+      ".diagram-item, .diagram-measure-row, .diagram-column-title, #legendContainer"
+    ).forEach(function (el) {
+      if (el.closest("#legendContainer") &&
+          getComputedStyle(el.closest("#legendContainer")).display === "none") return;
+      var b = el.getBoundingClientRect();
+      if (b.width && b.height) {
+        width = Math.max(width, b.right - outer.left + 3);
+        height = Math.max(height, b.bottom - outer.top + 3);
+      }
+    });
+    return {rect:outer,width:Math.ceil(width),height:Math.ceil(height)};
   }
 
   function copyStylesForPrint() {
@@ -91,9 +116,13 @@
     getReadyDiagram(function (area) {
       if (preview.closed) return;
       try {
-        var rect = area.getBoundingClientRect();
-        var fullWidth = Math.ceil(rect.width);
-        var fullHeight = Math.ceil(rect.height);
+        var full = getExportBounds(area);
+        var fullWidth = full.width;
+        var fullHeight = full.height;
+        // Match the editor's responsive grid gap in the print-only window.
+        // Otherwise mobile-derived layouts reflow when printed on desktop.
+        var colElement = area.querySelector("#diagramColumns");
+        var liveColumnGap = colElement ? getComputedStyle(colElement).columnGap : "3.5rem";
         // A3 landscape is 420 × 297 mm. Reserve 5 mm margin each side.
         // CSS uses 96 px/in for physical units; preserve the original diagram layout.
         var fitWidth = (420 - 10) * 96 / 25.4;
@@ -106,8 +135,10 @@
           ? parseFloat(window.getComputedStyle(sampleMeasure).fontSize) : 10;
         var effectiveMeasurePt = measurePx * scale * 0.75;
         var qualityWarning = effectiveMeasurePt < 7
-          ? "Note: A3 fit makes measure text approximately " +
-            effectiveMeasurePt.toFixed(1) + " pt. An A2 option may be needed."
+          ? "WARNING: A3 reduces measure text to approximately " +
+            effectiveMeasurePt.toFixed(2) +
+            " pt (below the 7 pt test threshold). Use a larger page " +
+            "or reduce content before professional printing."
           : "Text stays vector-based; compare with the on-screen diagram.";
         var clone = cleanCloneForPrint(area);
         clone.style.setProperty("width", fullWidth + "px", "important");
@@ -120,8 +151,9 @@
           "#p0-actions button { font:inherit; border:1px solid #94a3b8; background:white; color:#111; padding:6px 12px; cursor:pointer; border-radius:5px; }",
           "#p0-actions p { margin:0 0 0 auto; font-size:12px; }",
           "#p0-page { position:relative; width:" + shownWidth + "px; height:" + shownHeight + "px; margin:8px auto; overflow:visible; }",
-          "#exportArea { box-sizing:border-box; width:" + fullWidth + "px !important; max-width:none !important; transform:scale(" + scale.toFixed(8) + "); transform-origin:0 0; }",
+          "#exportArea { position:absolute !important; top:0; left:0; box-sizing:border-box; width:" + fullWidth + "px !important; max-width:none !important; zoom:" + scale.toFixed(8) + "; transform:none !important; }",
           "#exportArea #diagramCanvasWrapper { overflow:visible !important; }",
+          "#exportArea #diagramColumns { column-gap:" + liveColumnGap + " !important; }",
           "#exportArea .diagram-add,#exportArea .diagram-quick-add-measure,#exportArea .diagram-edit-pencil,#exportArea .diagram-delete-button,#exportArea .diagram-color-badge,#exportArea .diagram-inline-actions { display:none !important; }",
           "#exportArea .diagram-node.diagram-selected { outline:none !important; }",
           "#exportArea .diagram-measure-row { outline:none !important; background:transparent !important; box-shadow:none !important; }",
@@ -163,9 +195,10 @@
   }
 
   function exportSvgDiagram(area, canvas, connections) {
-    var base = area.getBoundingClientRect();
-    var width = Math.ceil(base.width);
-    var height = Math.ceil(base.height);
+    var full = getExportBounds(area);
+    var base = full.rect;
+    var width = full.width;
+    var height = full.height;
     var root = svgElement("svg", {
       xmlns: SVG_NS, version:"1.1", viewBox:"0 0 " + width + " " + height,
       width:width, height:height, role:"img",

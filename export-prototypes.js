@@ -1,7 +1,7 @@
 /*
  * Driver Diagram Tool — P0 export comparison (experimental, non-destructive)
- * Adds two TEST buttons. Existing PNG/PDF export functions are not changed.
- * Version: 2026-11-18-p0b
+ * Adds three TEST buttons. Existing PNG/PDF export functions are not changed.
+ * Version: 2026-11-18-p0d (paper-size and legibility controls)
  */
 (function () {
   "use strict";
@@ -101,6 +101,30 @@
     });
   }
 
+  // Physical ISO A-series landscape paper dimensions, in millimetres.
+  // Preserve print-area margins for bleed-safe professional copies.
+  var PAPER_SIZES = {
+    A3: {width:420, height:297},
+    A2: {width:594, height:420},
+    A1: {width:841, height:594}
+  };
+  var PRINT_MARGIN_MM = 5;
+  // 7 pt is a diagnostic minimum, not an accessibility conformance claim.
+  var MIN_MEASURE_PT = 7;
+
+  function getPdfFit(size, widthPx, heightPx, measurePx) {
+    var sheet = PAPER_SIZES[size];
+    var fitWidth = (sheet.width - PRINT_MARGIN_MM*2) * 96 / 25.4;
+    var fitHeight = (sheet.height - PRINT_MARGIN_MM*2) * 96 / 25.4;
+    var scale = Math.min(fitWidth/widthPx, fitHeight/heightPx);
+    return {
+      scale:scale,
+      shownWidth:Math.ceil(widthPx*scale),
+      shownHeight:Math.ceil(heightPx*scale),
+      measurePt:measurePx*scale*0.75
+    };
+  }
+
   function printPreview() {
     if (editingBlocked("preparing the vector PDF")) return;
 
@@ -119,61 +143,102 @@
         var full = getExportBounds(area);
         var fullWidth = full.width;
         var fullHeight = full.height;
-        // Match the editor's responsive grid gap in the print-only window.
-        // Otherwise mobile-derived layouts reflow when printed on desktop.
         var colElement = area.querySelector("#diagramColumns");
         var liveColumnGap = colElement ? getComputedStyle(colElement).columnGap : "3.5rem";
-        // A3 landscape is 420 × 297 mm. Reserve 5 mm margin each side.
-        // CSS uses 96 px/in for physical units; preserve the original diagram layout.
-        var fitWidth = (420 - 10) * 96 / 25.4;
-        var fitHeight = (297 - 10) * 96 / 25.4;
-        var scale = Math.min(1, fitWidth / fullWidth, fitHeight / fullHeight);
-        var shownWidth = Math.ceil(fullWidth * scale);
-        var shownHeight = Math.ceil(fullHeight * scale);
-        var sampleMeasure = area.querySelector(".diagram-measure-row > span:last-child");
-        var measurePx = sampleMeasure
-          ? parseFloat(window.getComputedStyle(sampleMeasure).fontSize) : 10;
-        var effectiveMeasurePt = measurePx * scale * 0.75;
-        var qualityWarning = effectiveMeasurePt < 7
-          ? "WARNING: A3 reduces measure text to approximately " +
-            effectiveMeasurePt.toFixed(2) +
-            " pt (below the 7 pt test threshold). Use a larger page " +
-            "or reduce content before professional printing."
-          : "Text stays vector-based; compare with the on-screen diagram.";
+
+        // Use smallest actually rendered measure font rather than just the first.
+        var measureSizes = Array.from(area.querySelectorAll(
+          ".diagram-measure-row > span:last-child"
+        )).map(function (el) {
+          return parseFloat(window.getComputedStyle(el).fontSize);
+        }).filter(function (n) { return Number.isFinite(n) && n>0; });
+        var measurePx = measureSizes.length ? Math.min.apply(null,measureSizes) : 10;
+        var fit = {};
+        Object.keys(PAPER_SIZES).forEach(function (size) {
+          fit[size] = getPdfFit(size,fullWidth,fullHeight,measurePx);
+        });
+        var recommended = Object.keys(PAPER_SIZES).find(function (size) {
+          return fit[size].measurePt >= MIN_MEASURE_PT;
+        }) || "A1";
+        var noSizeMeetsTarget = fit.A1.measurePt < MIN_MEASURE_PT;
         var clone = cleanCloneForPrint(area);
-        clone.style.setProperty("width", fullWidth + "px", "important");
-        clone.style.setProperty("max-width", "none", "important");
+        clone.style.setProperty("width",fullWidth+"px","important");
+        clone.style.setProperty("max-width","none","important");
+
         var css = [
-          "@page { size: A3 landscape; margin: 5mm; }",
           "* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }",
           "html,body { margin:0 !important; padding:0 !important; background:#fff !important; }",
-          "#p0-actions { box-sizing:border-box; display:flex; gap:8px; align-items:center; padding:10px; font:14px sans-serif; background:#f1f5f9; color:#1e293b; }",
-          "#p0-actions button { font:inherit; border:1px solid #94a3b8; background:white; color:#111; padding:6px 12px; cursor:pointer; border-radius:5px; }",
-          "#p0-actions p { margin:0 0 0 auto; font-size:12px; }",
-          "#p0-page { position:relative; width:" + shownWidth + "px; height:" + shownHeight + "px; margin:8px auto; overflow:visible; }",
-          "#exportArea { position:absolute !important; top:0; left:0; box-sizing:border-box; width:" + fullWidth + "px !important; max-width:none !important; zoom:" + scale.toFixed(8) + "; transform:none !important; }",
+          "#p0-actions { box-sizing:border-box; display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px; font:14px sans-serif; background:#f1f5f9; color:#1e293b; }",
+          "#p0-actions button,#p0-actions select { font:inherit; border:1px solid #94a3b8; background:white; color:#111; padding:6px 10px; cursor:pointer; border-radius:5px; }",
+          "#p0-actions label { display:inline-flex; align-items:center; gap:7px; font-size:13px; margin:0; }",
+          "#p0-actions select { width:auto !important; margin:0 !important; }",
+          "#p0-actions p { margin:0; flex:1 1 100%; font-size:12px; line-height:1.4; }",
+          "#p0-actions p.p0-warning { color:#992116; font-weight:650; }",
+          "#p0-actions p.p0-good { color:#14532d; }",
+          "#p0-page { position:relative; width:"+fit.A3.shownWidth+"px; height:"+fit.A3.shownHeight+"px; margin:8px auto; overflow:visible; }",
+          "#exportArea { position:absolute !important; top:0; left:0; box-sizing:border-box; width:"+fullWidth+"px !important; max-width:none !important; zoom:"+fit.A3.scale.toFixed(8)+"; transform:none !important; }",
           "#exportArea #diagramCanvasWrapper { overflow:visible !important; }",
-          "#exportArea #diagramColumns { column-gap:" + liveColumnGap + " !important; }",
+          "#exportArea #diagramColumns { column-gap:"+liveColumnGap+" !important; }",
           "#exportArea .diagram-add,#exportArea .diagram-quick-add-measure,#exportArea .diagram-edit-pencil,#exportArea .diagram-delete-button,#exportArea .diagram-color-badge,#exportArea .diagram-inline-actions { display:none !important; }",
           "#exportArea .diagram-node.diagram-selected { outline:none !important; }",
           "#exportArea .diagram-measure-row { outline:none !important; background:transparent !important; box-shadow:none !important; }",
           "#exportArea .diagram-connection-hit { display:none !important; }",
           "@media print { #p0-actions { display:none !important; } #p0-page { margin:0 auto !important; break-inside:avoid !important; page-break-inside:avoid !important; } }"
         ].join("\n");
-        var markup = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Driver diagram — vector PDF test</title>' +
-          copyStylesForPrint() + "<style>" + css + "</style></head><body>" +
-          '<div id="p0-actions"><button type="button" onclick="window.print()">Print / Save as PDF</button>' +
-          '<button type="button" onclick="window.close()">Close</button>' +
-          '<p>' + escapeHtml(qualityWarning) + '</p></div>' +
-          '<div id="p0-page">' + clone.outerHTML + '</div>' +
-          '<script>Promise.resolve(document.fonts && document.fonts.ready).then(function(){' +
-          'if (!window.opener || !window.opener.__P0_SKIP_PRINT) setTimeout(function(){window.print()},400);' +
-          '});<\/script></body></html>';
+
+        // Only these dimensions and the legibility estimate cross into the
+        // isolated print window. No editor controls or event handlers travel.
+        var opts = {
+          fits:fit,
+          recommended:recommended,
+          noSizeMeetsTarget:noSizeMeetsTarget,
+          minimumPt:MIN_MEASURE_PT
+        };
+        var run = [
+          '(function(){',
+          '"use strict";',
+          'var sizes='+JSON.stringify(opts)+';',
+          'window.p0ChoosePaper=function(size){',
+          'if(!sizes.fits[size]) return;',
+          'var f=sizes.fits[size];',
+          'document.getElementById("p0-page-size").textContent="@page { size: "+size+" landscape; margin: 5mm; }";',
+          'document.getElementById("p0-paper").value=size;',
+          'document.getElementById("p0-page").style.width=f.shownWidth+"px";',
+          'document.getElementById("p0-page").style.height=f.shownHeight+"px";',
+          'document.getElementById("exportArea").style.setProperty("zoom",f.scale.toFixed(8),"important");',
+          'var info=document.getElementById("p0-print-quality");',
+          'var pt=f.measurePt.toFixed(2);',
+          'if(f.measurePt<sizes.minimumPt){',
+          'info.className="p0-warning";',
+          'info.textContent="READABILITY WARNING: estimated smallest measure text is "+pt+" pt on "+size+" landscape (below the "+sizes.minimumPt+" pt test threshold). "+',
+          '(sizes.noSizeMeetsTarget?"Even A1 is too small; reduce content or change layout.":"Recommended: "+sizes.recommended+" landscape.");',
+          '}else{',
+          'info.className="p0-good";',
+          'info.textContent="Estimated smallest measure text: "+pt+" pt on "+size+" landscape. Review the actual PDF at 100% before sharing.";',
+          '}',
+          'document.getElementById("p0-print-paper").textContent="Print / Save as PDF ("+size+")";',
+          '};',
+          'window.p0ChoosePaper("A3");',
+          '})();'
+        ].join("\n");
+        var recommendation = recommended !== "A3"
+          ? '<button type="button" id="p0-recommended" onclick="window.p0ChoosePaper(\''+recommended+'\')">Use recommended '+recommended+'</button>'
+          : "";
+        var markup = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Driver diagram — vector PDF test</title>'+
+          copyStylesForPrint()+'<style>'+css+'</style>'+
+          '<style id="p0-page-size">@page { size:A3 landscape; margin:5mm; }</style></head><body>'+
+          '<div id="p0-actions"><button id="p0-print-paper" type="button" onclick="window.print()">Print / Save as PDF (A3)</button>'+
+          '<label for="p0-paper">Paper size <select id="p0-paper" onchange="window.p0ChoosePaper(this.value)"><option value="A3">A3 landscape</option><option value="A2">A2 landscape</option><option value="A1">A1 landscape</option></select></label>'+
+          recommendation+
+          '<button type="button" onclick="window.close()">Close</button>'+
+          '<p id="p0-print-quality" role="status" aria-live="polite"></p></div>'+
+          '<div id="p0-page">'+clone.outerHTML+'</div>'+
+          '<script>'+run+'<\/script></body></html>';
         preview.document.open();
         preview.document.write(markup);
         preview.document.close();
       } catch (error) {
-        console.error("P0 print preview error", error);
+        console.error("P0 print preview error",error);
         try { preview.close(); } catch (ignore) {}
         notify("Could not prepare the vector PDF test: " + error.message);
       }

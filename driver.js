@@ -6884,11 +6884,140 @@ function previewInlineColour(nodeId, colour, newOption) {
     : "#000000";
 }
 
+
 function showInlineColourMenu(nodeId, trigger) {
-  // Both entry points now open the identical 24-colour popup.
   if (!activeDiagramTextEdit ||
       activeDiagramTextEdit.id !== nodeId) return;
-  openQuickColourDialogForNode(nodeId);
+
+  dismissInlineColourMenu();
+
+  var menu = document.createElement("div");
+  menu.className = "diagram-inline-colour-menu";
+  menu.setAttribute("role", "group");
+  menu.setAttribute("aria-label", "Change box colour");
+
+  var node = nodes.find(function (n) { return n.id === nodeId; });
+  var currentColour = Object.prototype.hasOwnProperty.call(
+    activeDiagramTextEdit, "pendingColour"
+  ) ? activeDiagramTextEdit.pendingColour : (node ? node.color : "");
+  currentColour = (currentColour || "").toLowerCase();
+
+  function closeMenu() {
+    menu.remove();
+    document.removeEventListener("pointerdown", outsideClick, true);
+    document.removeEventListener("keydown", escapeKey, true);
+    window.removeEventListener("resize", closeMenu);
+    window.removeEventListener("scroll", scrollOutside, true);
+    if (closeInlineColourMenu === closeMenu) closeInlineColourMenu = null;
+  }
+
+  function outsideClick(event) {
+    if (!menu.contains(event.target) && !trigger.contains(event.target)) {
+      closeMenu();
+    }
+  }
+
+  function scrollOutside(event) {
+    if (!menu.contains(event.target)) closeMenu();
+  }
+
+  function escapeKey(event) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeMenu();
+    if (trigger.isConnected) trigger.focus();
+  }
+
+  function addChoice(label, colour, action) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "diagram-inline-colour-choice";
+
+    if (colour !== null) {
+      button.setAttribute("aria-pressed",
+        String((colour || "").toLowerCase() === currentColour));
+    }
+
+    if (colour) {
+      var swatch = document.createElement("span");
+      swatch.className = "diagram-inline-colour-swatch";
+      swatch.style.backgroundColor = colour;
+      button.appendChild(swatch);
+    }
+
+    var text = document.createElement("span");
+    text.textContent = label;
+    text.style.minWidth = "0";
+    text.style.overflowWrap = "anywhere";
+    button.appendChild(text);
+
+    if (colour !== null && (colour || "").toLowerCase() === currentColour) {
+      var tick = document.createElement("span");
+      tick.textContent = "✓";
+      tick.style.marginLeft = "auto";
+      tick.setAttribute("aria-hidden", "true");
+      button.appendChild(tick);
+    }
+
+    button.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenu();
+      action();
+      if (colour !== null && trigger.isConnected) trigger.focus();
+    });
+    menu.appendChild(button);
+  }
+
+  // Remove the element's colour.
+  addChoice("No colour", "", function () {
+    previewInlineColour(nodeId, "", null);
+  });
+
+  // Show only colours already saved in the key.
+  if (!colorOptions.length) {
+    var empty = document.createElement("div");
+    empty.className = "colour-options-empty";
+    empty.textContent = "No colours added yet.";
+    menu.appendChild(empty);
+  } else {
+    colorOptions.forEach(function (option) {
+      addChoice(option.label + " (" + option.value + ")", option.value,
+        function () { previewInlineColour(nodeId, option.value, null); });
+    });
+  }
+
+  // Separate existing colours from the Add colour action.
+  var divider = document.createElement("div");
+  divider.className = "quick-colour-menu-divider";
+  menu.appendChild(divider);
+
+  // Open the existing shared 24-colour popup.
+  addChoice("Add a colour…", null, function () {
+    openQuickColourDialogForNode(nodeId);
+  });
+
+  // Position the menu near the palette button.
+  document.body.appendChild(menu);
+  var rect = trigger.getBoundingClientRect();
+  var left = Math.max(8,
+    Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8));
+  var top = rect.bottom + 6;
+
+  if (top + menu.offsetHeight > window.innerHeight - 8) {
+    top = Math.max(8, rect.top - menu.offsetHeight - 6);
+  }
+
+  menu.style.left = left + "px";
+  menu.style.top = top + "px";
+
+  // Close on outside click, Escape, resize or external scroll.
+  closeInlineColourMenu = closeMenu;
+  document.addEventListener("pointerdown", outsideClick, true);
+  document.addEventListener("keydown", escapeKey, true);
+  window.addEventListener("resize", closeMenu);
+  window.addEventListener("scroll", scrollOutside, true);
 }
 
 /* B5.5b — 24 standard colours for the visual element picker. */

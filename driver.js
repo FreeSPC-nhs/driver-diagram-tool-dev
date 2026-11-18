@@ -6589,6 +6589,29 @@ function toggleControlsVisibility() {
 }
 
 
+/* Shared capture options for PNG and PDF exports. */
+function diagramExportCanvasOptions(scale) {
+  return {
+    scale: scale || 2,
+    useCORS: true,
+    logging: false,
+    backgroundColor: "#ffffff",
+
+    onclone: function (clonedDocument) {
+      // html2canvas can collapse visible spaces in small
+      // measure labels. Correct only the export copy.
+      clonedDocument.querySelectorAll(
+        ".diagram-measure-row > span:last-child"
+      ).forEach(function (textSpan) {
+        textSpan.textContent = (
+          textSpan.textContent || ""
+        ).replace(/ /g, "\u00A0\u200B");
+      });
+    }
+  };
+}
+
+
 // Helper: temporarily replace the live SVG with an <img> snapshot
 // so html2canvas / html2pdf capture lines reliably.
 
@@ -6741,11 +6764,12 @@ function exportDiagramPng() {
 
   withSvgImageOverlay(function () {
     // Return the html2canvas promise so the helper can clean up afterwards
-    return html2canvas(exportArea, {
-      scale: 2,
-      useCORS: true,
-      logging: false
-    });
+    
+return html2canvas(
+  exportArea,
+  diagramExportCanvasOptions(3)
+);
+
   })
     .then(function (canvas) {
       exportArea.classList.remove("export-clean");
@@ -6771,38 +6795,89 @@ function exportDiagramPng() {
 
 
 
+
 function exportDiagramPdf() {
-
-  if (blockFileActionDuringEdit("downloading a PDF")) return;
-
   var exportArea = document.getElementById("exportArea");
+
   if (!exportArea) {
     alert("Could not find diagram to export.");
     return;
   }
 
-  var opt = {
-    margin: 10,
-    filename: "driver-diagram.pdf",
-    html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: "mm", format: "a4", orientation: "landscape" }
-  };
+  // Keep the unfinished-edit safety check from our
+  // earlier changes.
+  if (typeof blockFileActionDuringEdit === "function" &&
+      blockFileActionDuringEdit("downloading a PDF")) {
+    return;
+  }
+
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert("The PDF library has not loaded. Please refresh the page.");
+    return;
+  }
 
   exportArea.classList.add("export-clean");
 
+  // Capture exactly the same visual diagram as the PNG.
   withSvgImageOverlay(function () {
-    // html2pdf returns a Promise
-    return html2pdf().set(opt).from(exportArea).save();
+    return html2canvas(
+      exportArea,
+      diagramExportCanvasOptions(3)
+    );
   })
-    .then(function () {
-      exportArea.classList.remove("export-clean");
+    .then(function (canvas) {
+      if (!canvas || !canvas.width || !canvas.height) {
+        throw new Error("The diagram capture was empty.");
+      }
+
+      var pdf = new window.jspdf.jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a3",
+        compress: true
+      });
+
+      var pageWidth = pdf.internal.pageSize.getWidth();
+      var pageHeight = pdf.internal.pageSize.getHeight();
+
+      // Leave a small border around the diagram.
+      var margin = 5;
+      var availableWidth = pageWidth - (margin * 2);
+      var availableHeight = pageHeight - (margin * 2);
+
+      // Fit the COMPLETE image on ONE page.
+      // Preserve the original proportions.
+      var scale = Math.min(
+        availableWidth / canvas.width,
+        availableHeight / canvas.height
+      );
+
+      var imageWidth = canvas.width * scale;
+      var imageHeight = canvas.height * scale;
+
+      // Centre it on the page.
+      var x = (pageWidth - imageWidth) / 2;
+      var y = (pageHeight - imageHeight) / 2;
+
+      pdf.addImage(
+        canvas.toDataURL("image/png"),
+        "PNG",
+        x,
+        y,
+        imageWidth,
+        imageHeight
+      );
+
+      pdf.save("driver-diagram.pdf");
     })
-    .catch(function (err) {
-      console.error("PDF export error:", err);
+    .catch(function (error) {
+      console.error("PDF export error:", error);
+      alert("The PDF could not be created. Please try again.");
+    })
+    .finally(function () {
       exportArea.classList.remove("export-clean");
     });
 }
-
 
 
 function updateLegendVisibility() {

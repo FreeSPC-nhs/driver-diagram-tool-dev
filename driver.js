@@ -5933,58 +5933,85 @@ function buildOutlineActionControls(node) {
   });
 
 
-  var colourLabel = document.createElement("label");
-  colourLabel.className = "diagram-outline-colour-label";
-  colourLabel.textContent = "Box colour";
 
-  var colourSelect = document.createElement("select");
-  colourSelect.setAttribute("aria-label", "Colour for " + node.text);
+  // Saved colour choices, using the same flow as the diagram palette.
+  var colourDetails = document.createElement("details");
+  colourDetails.className = "diagram-outline-colour-details";
 
-  function option(name, value) {
-    var item = document.createElement("option");
-    item.value = value;
-    item.textContent = name;
-    colourSelect.appendChild(item);
+  var colourSummary = document.createElement("summary");
+  colourSummary.textContent = "Change colour";
+  colourDetails.appendChild(colourSummary);
+
+  var colourChoices = document.createElement("div");
+  colourChoices.className = "diagram-outline-colour-choices";
+
+  function addOutlineColourChoice(label, colour, isNew) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "diagram-outline-colour-choice";
+
+    if (!isNew && colour) {
+      var swatch = document.createElement("span");
+      swatch.className = "diagram-outline-colour-swatch";
+      swatch.style.backgroundColor = colour;
+      swatch.setAttribute("aria-hidden", "true");
+      button.appendChild(swatch);
+    }
+
+    var text = document.createElement("span");
+    text.textContent = label;
+    button.appendChild(text);
+
+    if (!isNew && (node.color || "").toLowerCase() ===
+        (colour || "").toLowerCase()) {
+      var tick = document.createElement("span");
+      tick.className = "diagram-outline-colour-current";
+      tick.textContent = "✓";
+      tick.setAttribute("aria-hidden", "true");
+      button.appendChild(tick);
+      button.setAttribute("aria-pressed", "true");
+    } else if (!isNew) {
+      button.setAttribute("aria-pressed", "false");
+    }
+
+    button.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!outlineActionCanStart()) return;
+      closeMenu();
+
+      if (isNew) {
+        openQuickColourDialogForNode(node.id);
+      } else if ((node.color || "").toLowerCase() !==
+                 (colour || "").toLowerCase()) {
+        node.color = colour;
+        updateAllViews();
+      }
+    });
+
+    colourChoices.appendChild(button);
   }
 
-  option("No colour", "");
+  addOutlineColourChoice("No colour", "", false);
+
   colorOptions.forEach(function (colour) {
-    option(colour.label, colour.value);
+    addOutlineColourChoice(
+      colour.label + " (" + colour.value + ")",
+      colour.value,
+      false
+    );
   });
 
-  if (node.color && !colorOptions.some(function (colour) {
-    return colour.value === node.color;
-  })) {
-    option("Current colour (" + node.color + ")", node.color);
-  }
+  var colourDivider = document.createElement("div");
+  colourDivider.className = "quick-colour-menu-divider";
+  colourChoices.appendChild(colourDivider);
 
-  option("Add a colour…", "__outline_new_colour__");
-  colourSelect.value = node.color || "";
+  addOutlineColourChoice("Add a colour…", null, true);
 
-  colourSelect.addEventListener("change", function (event) {
-    event.stopPropagation();
-    if (!outlineActionCanStart()) {
-      colourSelect.value = node.color || "";
-      return;
-    }
+  colourDetails.appendChild(colourChoices);
+  menu.appendChild(colourDetails);
 
-    var chosen = colourSelect.value;
-    closeMenu();
 
-    if (chosen === "__outline_new_colour__") {
-      colourSelect.value = node.color || "";
-      openQuickColourDialogForNode(node.id);
-      return;
-    }
-
-    if (chosen !== (node.color || "")) {
-      node.color = chosen;
-      updateAllViews();
-    }
-  });
-
-  colourLabel.appendChild(colourSelect);
-  menu.appendChild(colourLabel);
 
   actionButton("Delete element…", function () {
     // Existing confirmation also describes dependent elements.
@@ -7036,12 +7063,12 @@ var standardDiagramColours = [
   { label: "NHS Warm Yellow", value: "#FFB81C" },
   { label: "NHS Mid Grey", value: "#768692" },
 
+  { label: "Soft Pink", value: "#FBDADA" },
+  { label: "Soft Orange", value: "#FFD285" },
+  { label: "Soft Yellow", value: "#FFFB8F" },
+  { label: "Soft Green", value: "#A6FF94" },
   { label: "Soft Blue", value: "#D9E8F5" },
   { label: "Soft Aqua", value: "#D9F1EF" },
-  { label: "Soft Green", value: "#D9EFE1" },
-  { label: "Soft Orange", value: "#FCE5CD" },
-  { label: "Soft Yellow", value: "#FFF4D9" },
-  { label: "Soft Pink", value: "#F7DFEC" },
 
   { label: "White", value: "#FFFFFF" },
   { label: "Off White", value: "#F8F9FA" },

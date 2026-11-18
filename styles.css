@@ -2575,3 +2575,66 @@ dialog.quick-colour-dialog {
   .quick-colour-grid { grid-template-columns:repeat(6,minmax(0,1fr)); gap:5px; }
   .quick-colour-selection-row { flex-wrap:wrap; }
 }
+
+
+/* Outline: expandable saved-colour menu (replaces dropdown). */
+
+#diagramOutlineTree .diagram-outline-colour-details {
+  border: 1px solid #b8cce3;
+  border-radius: 5px;
+  background: #fff;
+}
+
+#diagramOutlineTree .diagram-outline-colour-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.83rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+#diagramOutlineTree .diagram-outline-colour-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+#diagramOutlineTree .diagram-outline-colour-details > summary::after {
+  content: "▸";
+  color: #475569;
+}
+
+#diagramOutlineTree .diagram-outline-colour-details[open] > summary::after {
+  content: "▾";
+}
+
+#diagramOutlineTree .diagram-outline-colour-choices {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+
+#diagramOutlineTree .diagram-outline-action-menu .diagram-outline-colour-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 8px;
+}
+
+#diagramOutlineTree .diagram-outline-colour-swatch {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #b6c0c8;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+#diagramOutlineTree .diagram-outline-colour-current {
+  margin-left: auto;
+  color: #005eb8;
+  font-weight: 700;
+}
+

@@ -2009,8 +2009,7 @@ node.measures.forEach(function (m, measureIndex) {
   icon.title = meta.label;
 
   var txt = document.createElement("span");
-txt.className = "diagram-node-text diagram-measure-text";
-txt.textContent = measureText;
+  txt.textContent = measureText;
 
   row.appendChild(icon);
   row.appendChild(txt);
@@ -4526,12 +4525,20 @@ function downloadPortableHtml() {
       var htmlClone =
         document.documentElement.cloneNode(true);
 
-// Keep experimental export controls out of saved diagrams.
-htmlClone.querySelectorAll(
-  'script[data-export-p0], #btnP0VectorPdf, #btnP0ExportSvg, #btnP0ExportPng'
-).forEach(function (element) {
-  element.remove();
-});
+      // Restore default panel/menu states in portable saves.
+      // An icon-only collapsed panel must never become impossible to reopen.
+      var panelInCopy = htmlClone.querySelector("#controlsPanel");
+      if (panelInCopy) panelInCopy.style.display = "";
+      var mainInCopy = htmlClone.querySelector("main");
+      if (mainInCopy) mainInCopy.style.gridTemplateColumns = "";
+      var panelButtonInCopy = htmlClone.querySelector("#btnToggleControls");
+      if (panelButtonInCopy) {
+        panelButtonInCopy.setAttribute("aria-expanded", "true");
+        panelButtonInCopy.setAttribute("aria-label", "Hide editing panel");
+        panelButtonInCopy.title = "Hide editing panel";
+      }
+      var exportMenuInCopy = htmlClone.querySelector("#exportChartMenu");
+      if (exportMenuInCopy) exportMenuInCopy.removeAttribute("open");
 
 
 // B1.4: Embed the external CSS in saved HTML files.
@@ -6578,7 +6585,10 @@ function toggleControlsVisibility() {
 
   controlsVisible = !controlsVisible;
   panel.style.display = controlsVisible ? "" : "none";
-  btn.textContent = controlsVisible ? "Hide editing panel" : "Show editing panel";
+  var label = controlsVisible ? "Hide editing panel" : "Show editing panel";
+  btn.setAttribute("aria-label", label);
+  btn.title = label;
+  btn.setAttribute("aria-expanded", controlsVisible ? "true" : "false");
 
   // When controls are hidden, make the diagram take full width;
   // when shown, revert to the original 2-column layout.
@@ -6597,301 +6607,19 @@ function toggleControlsVisibility() {
 }
 
 
-/* Shared capture options for PNG and PDF exports. */
-
-/* Shared capture options for PNG and PDF exports. */
-
-/* Capture options shared by PNG and PDF. */
-function diagramExportCanvasOptions(scale) {
-  return {
-    scale: scale || 3,
-    useCORS: true,
-    logging: false,
-    backgroundColor: "#ffffff"
-  };
-}
-
-
-// Helper: temporarily replace the live SVG with an <img> snapshot
-// so html2canvas / html2pdf capture lines reliably.
-
-function withSvgImageOverlay(runCapture) {
-
-  if (activeOutlineTextEdit) {
-    alert(
-      "Save or cancel the Outline text edit before exporting."
-    );
-
-    return Promise.reject(
-      new Error("Unfinished Outline text edit.")
-    );
-  }
-
-  // B4.4a.1: Always export the visual diagram.
-  if (diagramViewMode === "outline") {
-    switchDiagramView("diagram");
-
-    return new Promise(function (resolve, reject) {
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          withSvgImageOverlay(runCapture).then(
-            resolve, reject
-          );
-        });
-      });
-    });
-  }
-
-  var exportArea = document.getElementById("exportArea");
-  var svg = document.getElementById("diagramConnections");
-  var canvasDiv = document.getElementById("diagramCanvas");
-  if (!exportArea || !svg || !canvasDiv) {
-    // Fallback: run capture directly
-    return runCapture();
-  }
-
-  // Make sure positions + connections are up to date
-  updateAllViews();
-
-  var serializer;
-  try {
-    serializer = new XMLSerializer();
-  } catch (e) {
-    console.error("XMLSerializer not available, capturing directly.", e);
-    return runCapture();
-  }
-
-
-  var svgClone = svg.cloneNode(true);
-
-  svgClone.querySelectorAll(
-    ".diagram-connection-hit"
-  ).forEach(function (el) {
-    el.remove();
-  });
-
-  svgClone.querySelectorAll(
-    ".diagram-connection-visible"
-  ).forEach(function (el) {
-    el.setAttribute("stroke", "#666");
-    el.setAttribute("stroke-width", "2.5");
-    el.removeAttribute("data-selected");
-  });
-
-  var svgString = serializer.serializeToString(svgClone);
-
-  var dataUrl =
-    "data:image/svg+xml;charset=utf-8," +
-    encodeURIComponent(svgString);
-
-  return new Promise(function (resolve, reject) {
-    var img = new Image();
-    img.onload = function () {
-      // Hide original SVG and overlay the image in the same spot
-      svg.style.visibility = "hidden";
-      img.style.position = "absolute";
-      img.style.top = "0";
-      img.style.left = "0";
-      img.style.width = "100%";
-      img.style.height = "100%";
-      img.style.pointerEvents = "none";
-
-      canvasDiv.appendChild(img);
-
-      var p;
-      try {
-        p = runCapture();
-      } catch (err) {
-        cleanup();
-        reject(err);
-        return;
-      }
-
-      function cleanup() {
-        try {
-          canvasDiv.removeChild(img);
-        } catch (e) {}
-        svg.style.visibility = "";
-      }
-
-      if (p && typeof p.then === "function") {
-        p.then(function (result) {
-          cleanup();
-          resolve(result);
-        }).catch(function (err) {
-          cleanup();
-          reject(err);
-        });
-      } else {
-        cleanup();
-        resolve(p);
-      }
-    };
-
-    img.onerror = function (err) {
-      console.error("SVG image overlay failed, capturing directly.", err);
-      // Fallback: run capture without overlay
-      try {
-        var p2 = runCapture();
-        if (p2 && typeof p2.then === "function") {
-          p2.then(resolve).catch(reject);
-        } else {
-          resolve(p2);
-        }
-      } catch (e2) {
-        reject(e2);
-      }
-    };
-
-    img.src = dataUrl;
-  });
-}
-
-
-
-function exportDiagramPng() {
-
-  if (blockFileActionDuringEdit("downloading an image")) return;
-
-  var exportArea = document.getElementById("exportArea");
-  if (!exportArea) {
-    alert("Could not find diagram to export.");
-    return;
-  }
-
-  // Hide badges + add/connect buttons for export
-  exportArea.classList.add("export-clean");
-
-  withSvgImageOverlay(function () {
-    // Return the html2canvas promise so the helper can clean up afterwards
-    
-return html2canvas(
-  exportArea,
-  diagramExportCanvasOptions(3)
-);
-
-  })
-    .then(function (canvas) {
-      exportArea.classList.remove("export-clean");
-      if (!canvas) return;
-
-      canvas.toBlob(function (blob) {
-        if (!blob) return;
-        var url = URL.createObjectURL(blob);
-        var link = document.createElement("a");
-        link.href = url;
-        link.download = "driver-diagram.png";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      });
-    })
-    .catch(function (err) {
-      console.error("PNG export error:", err);
-      exportArea.classList.remove("export-clean");
-    });
-}
-
-
-
-
-function exportDiagramPdf() {
-  var exportArea = document.getElementById("exportArea");
-
-  if (!exportArea) {
-    alert("Could not find diagram to export.");
-    return;
-  }
-
-  // Keep the unfinished-edit safety check from our
-  // earlier changes.
-  if (typeof blockFileActionDuringEdit === "function" &&
-      blockFileActionDuringEdit("downloading a PDF")) {
-    return;
-  }
-
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    alert("The PDF library has not loaded. Please refresh the page.");
-    return;
-  }
-
-  exportArea.classList.add("export-clean");
-
-  // Capture exactly the same visual diagram as the PNG.
-  withSvgImageOverlay(function () {
-    return html2canvas(
-      exportArea,
-      diagramExportCanvasOptions(3)
-    );
-  })
-    .then(function (canvas) {
-      if (!canvas || !canvas.width || !canvas.height) {
-        throw new Error("The diagram capture was empty.");
-      }
-
-      var pdf = new window.jspdf.jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a3",
-        compress: true
-      });
-
-      var pageWidth = pdf.internal.pageSize.getWidth();
-      var pageHeight = pdf.internal.pageSize.getHeight();
-
-      // Leave a small border around the diagram.
-      var margin = 5;
-      var availableWidth = pageWidth - (margin * 2);
-      var availableHeight = pageHeight - (margin * 2);
-
-      // Fit the COMPLETE image on ONE page.
-      // Preserve the original proportions.
-      var scale = Math.min(
-        availableWidth / canvas.width,
-        availableHeight / canvas.height
-      );
-
-      var imageWidth = canvas.width * scale;
-      var imageHeight = canvas.height * scale;
-
-      // Centre it on the page.
-      var x = (pageWidth - imageWidth) / 2;
-      var y = (pageHeight - imageHeight) / 2;
-
-
-      pdf.addImage(
-        canvas.toDataURL("image/png"),
-        "PNG",
-        x,
-        y,
-        imageWidth,
-        imageHeight
-      );
-
-      pdf.save("driver-diagram.pdf");
-    })
-    .catch(function (error) {
-      console.error("PDF export error:", error);
-      alert("The PDF could not be created. Please try again.");
-    })
-    .finally(function () {
-      exportArea.classList.remove("export-clean");
-    });
-}
-
+/* Export chart: vector PDF / SVG / PNG implemented below in this file.
+   No html2canvas or jsPDF pipeline is used. */
 
 function updateLegendVisibility() {
-    var legend = document.getElementById("legendContainer");
-    var btn = document.getElementById("toggleLegendBtn");
+  var legend = document.getElementById("legendContainer");
+  var btn = document.getElementById("toggleLegendBtn");
+  if (!legend || !btn) return;
 
-    if (legendVisible) {
-        legend.style.display = "block";
-        btn.textContent = "Hide key";
-    } else {
-        legend.style.display = "none";
-        btn.textContent = "Show key";
-    }
+  legend.style.display = legendVisible ? "block" : "none";
+  var label = legendVisible ? "Hide key" : "Show key";
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("aria-pressed", legendVisible ? "true" : "false");
 }
 
 
@@ -8341,8 +8069,6 @@ if (window.ResizeObserver) {
   var btnSavePortable = document.getElementById("btnSavePortable");
   var btnToggleControls = document.getElementById("btnToggleControls");
   var btnHeaderClear = document.getElementById("btnHeaderClear");
-  var btnExportPng = document.getElementById("btnExportPng");
-  var btnExportPdf = document.getElementById("btnExportPdf");
   var applyAppearanceBtn = document.getElementById("applyAppearanceBtn");
 
 
@@ -8589,12 +8315,6 @@ if (exportArea) {
   if (btnHeaderClear) {
     btnHeaderClear.addEventListener("click", clearAllNodes);
   }
-  if (btnExportPng) {
-    btnExportPng.addEventListener("click", exportDiagramPng);
-  }
-  if (btnExportPdf) {
-    btnExportPdf.addEventListener("click", exportDiagramPdf);
-  }
   if (applyAppearanceBtn) {
     applyAppearanceBtn.addEventListener("click", applyDiagramAppearanceFromInputs);
   }
@@ -8799,3 +8519,560 @@ initialiseDiagramHistory();
 
 });
 
+/* ---------- Reliable vector export subsystem ---------- */
+
+/*
+ * Driver Diagram Tool — production vector exports (PDF, SVG and PNG)
+ * Standalone browser implementation; included automatically in saved HTML.
+ * Based on validated P0 Phase 3.2 exporter with A3/A2/A1 print options.
+ */
+(function () {
+  "use strict";
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  function notify(message) {
+    window.alert(message);
+  }
+
+  function editingBlocked(action) {
+    if (typeof window.blockFileActionDuringEdit === "function") {
+      return window.blockFileActionDuringEdit(action);
+    }
+    if (window.activeDiagramTextEdit || window.activeOutlineTextEdit) {
+      notify("Save or cancel your current edit before " + action + ".");
+      return true;
+    }
+    return false;
+  }
+
+  function afterTwoFrames(callback) {
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(callback);
+    });
+  }
+
+  function getReadyDiagram(callback) {
+    // Exporting from Outline should not unexpectedly leave the user in Diagram.
+    var restoreOutline = window.diagramViewMode === "outline" &&
+      typeof window.switchDiagramView === "function";
+    if (restoreOutline) window.switchDiagramView("diagram");
+    afterTwoFrames(function () {
+      var area = document.getElementById("exportArea");
+      var canvas = document.getElementById("diagramCanvas");
+      var connections = document.getElementById("diagramConnections");
+      try {
+        if (!area || !canvas || !connections || !area.getBoundingClientRect().width) {
+          throw new Error("The diagram could not be located for this export test.");
+        }
+        callback(area, canvas, connections);
+      } finally {
+        if (restoreOutline) window.switchDiagramView("outline");
+      }
+    });
+  }
+
+  // Full content bounds, including wide canvases on mobile and measures below
+  // absolutely positioned boxes. A simple getBoundingClientRect() can undercount.
+  function getExportBounds(area) {
+    var outer = area.getBoundingClientRect();
+    var canvas = area.querySelector("#diagramCanvas");
+    var width = Math.max(outer.width, area.scrollWidth,
+      canvas ? canvas.scrollWidth : 0);
+    var height = Math.max(outer.height, area.scrollHeight);
+    area.querySelectorAll(
+      ".diagram-item, .diagram-measure-row, .diagram-column-title, #legendContainer"
+    ).forEach(function (el) {
+      if (el.closest("#legendContainer") &&
+          getComputedStyle(el.closest("#legendContainer")).display === "none") return;
+      var b = el.getBoundingClientRect();
+      if (b.width && b.height) {
+        width = Math.max(width, b.right - outer.left + 3);
+        height = Math.max(height, b.bottom - outer.top + 3);
+      }
+    });
+    return {rect:outer,width:Math.ceil(width),height:Math.ceil(height)};
+  }
+
+  function copyStylesForPrint() {
+    var base = document.createElement("base");
+    base.href = document.baseURI;
+    var styles = Array.from(document.head.querySelectorAll(
+      'style, link[rel="stylesheet"]'
+    )).map(function (el) { return el.outerHTML; }).join("\n");
+    return base.outerHTML + "\n" + styles;
+  }
+
+  function cleanCloneForPrint(area) {
+    var clone = area.cloneNode(true);
+    clone.classList.add("export-clean");
+    clone.removeAttribute("hidden");
+    clone.querySelectorAll(".diagram-connection-hit").forEach(function (el) {
+      el.remove();
+    });
+    clone.querySelectorAll(".diagram-connection-visible").forEach(function (path) {
+      path.setAttribute("stroke", "#666");
+      path.setAttribute("stroke-width", "2.5");
+      path.removeAttribute("data-selected");
+    });
+    // Keep only the static, user-visible export area; don't run application JS.
+    return clone;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>\"']/g, function (m) {
+      return {"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[m];
+    });
+  }
+
+  // Physical ISO A-series landscape paper dimensions, in millimetres.
+  // Preserve print-area margins for bleed-safe professional copies.
+  var PAPER_SIZES = {
+    A3: {width:420, height:297},
+    A2: {width:594, height:420},
+    A1: {width:841, height:594}
+  };
+  var PRINT_MARGIN_MM = 5;
+  // 7 pt is a diagnostic minimum, not an accessibility conformance claim.
+  var MIN_MEASURE_PT = 7;
+
+  function getPdfFit(size, widthPx, heightPx, measurePx) {
+    var sheet = PAPER_SIZES[size];
+    var fitWidth = (sheet.width - PRINT_MARGIN_MM*2) * 96 / 25.4;
+    var fitHeight = (sheet.height - PRINT_MARGIN_MM*2) * 96 / 25.4;
+    var scale = Math.min(fitWidth/widthPx, fitHeight/heightPx);
+    return {
+      scale:scale,
+      shownWidth:Math.ceil(widthPx*scale),
+      shownHeight:Math.ceil(heightPx*scale),
+      measurePt:measurePx*scale*0.75
+    };
+  }
+
+  function printPreview() {
+    if (editingBlocked("preparing the vector PDF")) return;
+
+    // Open synchronously, before requestAnimationFrame, to avoid popup blockers.
+    var preview = window.open("", "_blank", "width=1100,height=850");
+    if (!preview) {
+      notify("Please allow pop-ups for this tool, then try 'Test vector PDF' again.");
+      return;
+    }
+    preview.document.write("<!doctype html><title>Preparing driver diagram…</title><p>Preparing print preview…</p>");
+    preview.document.close();
+
+    getReadyDiagram(function (area) {
+      if (preview.closed) return;
+      try {
+        var full = getExportBounds(area);
+        var fullWidth = full.width;
+        var fullHeight = full.height;
+        var colElement = area.querySelector("#diagramColumns");
+        var liveColumnGap = colElement ? getComputedStyle(colElement).columnGap : "3.5rem";
+
+        // Use smallest actually rendered measure font rather than just the first.
+        var measureSizes = Array.from(area.querySelectorAll(
+          ".diagram-measure-row > span:last-child"
+        )).map(function (el) {
+          return parseFloat(window.getComputedStyle(el).fontSize);
+        }).filter(function (n) { return Number.isFinite(n) && n>0; });
+        var measurePx = measureSizes.length ? Math.min.apply(null,measureSizes) : 10;
+        var fit = {};
+        Object.keys(PAPER_SIZES).forEach(function (size) {
+          fit[size] = getPdfFit(size,fullWidth,fullHeight,measurePx);
+        });
+        var recommended = Object.keys(PAPER_SIZES).find(function (size) {
+          return fit[size].measurePt >= MIN_MEASURE_PT;
+        }) || "A1";
+        var noSizeMeetsTarget = fit.A1.measurePt < MIN_MEASURE_PT;
+        var clone = cleanCloneForPrint(area);
+        clone.style.setProperty("width",fullWidth+"px","important");
+        clone.style.setProperty("max-width","none","important");
+
+        var css = [
+          "* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }",
+          "html,body { margin:0 !important; padding:0 !important; background:#fff !important; }",
+          "#p0-actions { box-sizing:border-box; display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px; font:14px sans-serif; background:#f1f5f9; color:#1e293b; }",
+          "#p0-actions button,#p0-actions select { font:inherit; border:1px solid #94a3b8; background:white; color:#111; padding:6px 10px; cursor:pointer; border-radius:5px; }",
+          "#p0-actions label { display:inline-flex; align-items:center; gap:7px; font-size:13px; margin:0; }",
+          "#p0-actions select { width:auto !important; margin:0 !important; }",
+          "#p0-actions p { margin:0; flex:1 1 100%; font-size:12px; line-height:1.4; }",
+          "#p0-actions p.p0-warning { color:#992116; font-weight:650; }",
+          "#p0-actions p.p0-good { color:#14532d; }",
+          "#p0-page { position:relative; width:"+fit.A3.shownWidth+"px; height:"+fit.A3.shownHeight+"px; margin:8px auto; overflow:visible; }",
+          "#exportArea { position:absolute !important; top:0; left:0; box-sizing:border-box; width:"+fullWidth+"px !important; max-width:none !important; zoom:"+fit.A3.scale.toFixed(8)+"; transform:none !important; }",
+          "#exportArea #diagramCanvasWrapper { overflow:visible !important; }",
+          "#exportArea #diagramColumns { column-gap:"+liveColumnGap+" !important; }",
+          "#exportArea .diagram-add,#exportArea .diagram-quick-add-measure,#exportArea .diagram-edit-pencil,#exportArea .diagram-delete-button,#exportArea .diagram-color-badge,#exportArea .diagram-inline-actions { display:none !important; }",
+          "#exportArea .diagram-node.diagram-selected { outline:none !important; }",
+          "#exportArea .diagram-measure-row { outline:none !important; background:transparent !important; box-shadow:none !important; }",
+          "#exportArea .diagram-connection-hit { display:none !important; }",
+          "@media print { #p0-actions { display:none !important; } #p0-page { margin:0 auto !important; break-inside:avoid !important; page-break-inside:avoid !important; } }"
+        ].join("\n");
+
+        // Only these dimensions and the legibility estimate cross into the
+        // isolated print window. No editor controls or event handlers travel.
+        var opts = {
+          fits:fit,
+          sheets:PAPER_SIZES,
+          recommended:recommended,
+          noSizeMeetsTarget:noSizeMeetsTarget,
+          minimumPt:MIN_MEASURE_PT
+        };
+        var run = [
+          '(function(){',
+          '"use strict";',
+          'var sizes='+JSON.stringify(opts)+';',
+          'window.p0ChoosePaper=function(size){',
+          'if(!sizes.fits[size]) return;',
+          'var f=sizes.fits[size];',
+          'var paper=sizes.sheets[size];',
+          'document.getElementById("p0-page-size").textContent="@page { size: "+paper.width+"mm "+paper.height+"mm; margin: 5mm; }";',
+          'document.getElementById("p0-paper").value=size;',
+          'document.getElementById("p0-page").style.width=f.shownWidth+"px";',
+          'document.getElementById("p0-page").style.height=f.shownHeight+"px";',
+          'document.getElementById("exportArea").style.setProperty("zoom",f.scale.toFixed(8),"important");',
+          'var info=document.getElementById("p0-print-quality");',
+          'var pt=f.measurePt.toFixed(2);',
+          'if(f.measurePt<sizes.minimumPt){',
+          'info.className="p0-warning";',
+          'info.textContent="READABILITY WARNING: estimated smallest measure text is "+pt+" pt on "+size+" landscape (below the "+sizes.minimumPt+" pt test threshold). "+',
+          '(sizes.noSizeMeetsTarget?"Even A1 is too small; reduce content or change layout.":"Recommended: "+sizes.recommended+" landscape.");',
+          '}else{',
+          'info.className="p0-good";',
+          'info.textContent="Estimated smallest measure text: "+pt+" pt on "+size+" landscape. Review the actual PDF at 100% before sharing.";',
+          '}',
+          'document.getElementById("p0-print-paper").textContent="Print / Save as PDF ("+size+")";',
+          '};',
+          'window.p0ChoosePaper("A3");',
+          '})();'
+        ].join("\n");
+        var recommendation = recommended !== "A3"
+          ? '<button type="button" id="p0-recommended" onclick="window.p0ChoosePaper(\''+recommended+'\')">Use recommended '+recommended+'</button>'
+          : "";
+        var markup = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Driver diagram — vector PDF</title>'+
+          copyStylesForPrint()+'<style>'+css+'</style>'+
+          '<style id="p0-page-size">@page { size:420mm 297mm; margin:5mm; }</style></head><body>'+
+          '<div id="p0-actions"><button id="p0-print-paper" type="button" onclick="window.print()">Print / Save as PDF (A3)</button>'+
+          '<label for="p0-paper">Paper size <select id="p0-paper" onchange="window.p0ChoosePaper(this.value)"><option value="A3">A3 landscape</option><option value="A2">A2 landscape</option><option value="A1">A1 landscape</option></select></label>'+
+          recommendation+
+          '<button type="button" onclick="window.close()">Close</button>'+
+          '<p id="p0-print-quality" role="status" aria-live="polite"></p></div>'+
+          '<div id="p0-page">'+clone.outerHTML+'</div>'+
+          '<script>'+run+'<\/script></body></html>';
+        preview.document.open();
+        preview.document.write(markup);
+        preview.document.close();
+      } catch (error) {
+        console.error("P0 print preview error",error);
+        try { preview.close(); } catch (ignore) {}
+        notify("Could not prepare the vector PDF: " + error.message);
+      }
+    });
+  }
+
+  function svgElement(tag, attributes) {
+    var result = document.createElementNS(SVG_NS, tag);
+    Object.keys(attributes || {}).forEach(function (key) {
+      if (attributes[key] != null) result.setAttribute(key, String(attributes[key]));
+    });
+    return result;
+  }
+
+  function svgRect(group, x, y, w, h, attrs) {
+    var shape = svgElement("rect", Object.assign({x:x,y:y,width:w,height:h}, attrs));
+    group.appendChild(shape);
+    return shape;
+  }
+
+  function exportSvgDiagram(area, canvas, connections) {
+    var full = getExportBounds(area);
+    var base = full.rect;
+    var width = full.width;
+    var height = full.height;
+    var root = svgElement("svg", {
+      xmlns: SVG_NS, version:"1.1", viewBox:"0 0 " + width + " " + height,
+      width:width, height:height, role:"img",
+      "aria-label":"Driver diagram with measures and legend"
+    });
+    root.appendChild(svgElement("title")).textContent = "Driver Diagram — vector export";
+    svgRect(root,0,0,width,height,{fill:"#ffffff"});
+    var position = function (rect) {
+      return { x:rect.left-base.left, y:rect.top-base.top,
+        width:rect.width,height:rect.height };
+    };
+    var diagramShell = document.getElementById("diagramCanvasWrapper");
+    if (diagramShell) {
+      var shell = position(diagramShell.getBoundingClientRect());
+      svgRect(root,shell.x,shell.y,shell.width,shell.height,{
+        fill:"#fafafa", stroke:"#e0e0e0","stroke-width":1,rx:6
+      });
+    }
+    // Import only visible vector connection paths, using the original geometry.
+    var canvasRect = canvas.getBoundingClientRect();
+    var linesGroup = svgElement("g", {
+      transform:"translate(" + (canvasRect.left-base.left) + " " +
+        (canvasRect.top-base.top) + ")"
+    });
+    connections.querySelectorAll(".diagram-connection-visible").forEach(function (path) {
+      linesGroup.appendChild(svgElement("path", {
+        d:path.getAttribute("d"), fill:"none", stroke:"#666",
+        "stroke-width":2.5, "stroke-linecap":"round"
+      }));
+    });
+    root.appendChild(linesGroup);
+
+    // Use *browser-rendered word positions* to preserve spaces and line breaks
+    // without html2canvas. Every word is individually positioned in native SVG.
+    function appendSvgText(element) {
+      if (!element || !element.getClientRects().length) return;
+      var style = window.getComputedStyle(element);
+      var group = svgElement("g", {"aria-label":element.textContent || ""});
+      var fontAttrs = {
+        fill:style.color, "font-family":style.fontFamily,
+        "font-size":style.fontSize, "font-weight":style.fontWeight,
+        "font-style":style.fontStyle,
+        "dominant-baseline":"text-before-edge"
+      };
+      var range = document.createRange();
+      var walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      var textNode, runs = [];
+      function addRun(word, rect, separated) {
+        if (!word || !rect || !rect.width || !rect.height) return;
+        runs.push({word:word, x:rect.left-base.left,
+          y:rect.top-base.top, separated:separated !== false});
+      }
+      while ((textNode = walker.nextNode())) {
+        var value = textNode.nodeValue || "";
+        var re = /\S+/gu, match;
+        while ((match = re.exec(value))) {
+          range.setStart(textNode,match.index);
+          range.setEnd(textNode,match.index+match[0].length);
+          var rects = range.getClientRects();
+          if (rects.length === 1) {
+            addRun(match[0],rects[0],true);
+          } else if (rects.length > 1) {
+            // Split only a genuinely wrapped long word into line fragments.
+            var index = match.index, lineTop = null;
+            var fragment = "", firstRect = null, firstFragment = true;
+            for (var ch of match[0]) {
+              range.setStart(textNode,index);
+              index += ch.length;
+              range.setEnd(textNode,index);
+              var charRect = range.getBoundingClientRect();
+              if (lineTop !== null && Math.abs(charRect.top-lineTop)>1.5) {
+                addRun(fragment,firstRect,firstFragment);
+                fragment="";
+                firstFragment=false;
+              }
+              if (!fragment) firstRect=charRect;
+              lineTop=charRect.top;
+              fragment+=ch;
+            }
+            addRun(fragment,firstRect,firstFragment);
+          }
+        }
+      }
+      // Keep the browser's actual line-break positions, but combine words
+      // on each line into ONE SVG text node. Individual word-positioned SVG
+      // elements can lose visible spaces in independent SVG renderers.
+      var lines=[];
+      runs.forEach(function (run) {
+        var line=lines.find(function (candidate) {
+          return Math.abs(candidate.y-run.y)<1.5;
+        });
+        if (!line) {
+          line={y:run.y, x:run.x, words:[]};
+          lines.push(line);
+        }
+        line.words.push(run);
+      });
+      lines.forEach(function (line) {
+        line.words.sort(function (a,b) { return a.x-b.x; });
+        var content=line.words.map(function (run,index) {
+          return (index && run.separated ? " " : "") + run.word;
+        }).join("");
+        if (style.textTransform === "uppercase") content=content.toUpperCase();
+        else if (style.textTransform === "lowercase") content=content.toLowerCase();
+        var text=svgElement("text",Object.assign({},fontAttrs,{
+          x:line.words[0].x,y:line.y
+        }));
+        text.textContent=content;
+        group.appendChild(text);
+      });
+      if (lines.length) root.appendChild(group);
+    }
+    // Headings.
+    area.querySelectorAll(".diagram-column-title").forEach(appendSvgText);
+
+    // Boxes (fill, border and native text).
+    area.querySelectorAll(".diagram-node").forEach(function (el) {
+      var p = position(el.getBoundingClientRect());
+      var style = window.getComputedStyle(el);
+      svgRect(root,p.x,p.y,p.width,p.height,{
+        fill:style.backgroundColor, stroke:style.borderTopColor,
+        "stroke-width":1, rx:4
+      });
+      svgRect(root,p.x,p.y,4,p.height,{fill:style.borderLeftColor});
+      appendSvgText(el.querySelector(".diagram-node-text"));
+    });
+    // Measures: vector bullet + browser-positioned words.
+    area.querySelectorAll(".diagram-measure-row").forEach(function (row) {
+      var bullet = row.firstElementChild;
+      var text = row.lastElementChild;
+      if (bullet) {
+        var br = position(bullet.getBoundingClientRect());
+        var bc = window.getComputedStyle(bullet);
+        root.appendChild(svgElement("circle",{
+          cx:br.x+br.width/2,cy:br.y+br.height/2,r:Math.min(3.5,br.height*.29),
+          fill:bc.color
+        }));
+      }
+      if (text && text!==bullet) appendSvgText(text);
+    });
+    // Only include visible legend, consistent with Hide key.
+    var legend = area.querySelector("#legendContainer");
+    if (legend && window.getComputedStyle(legend).display!=="none") {
+      legend.querySelectorAll(".legend-title").forEach(appendSvgText);
+      legend.querySelectorAll(".legend-item").forEach(function (row) {
+        var swatch = row.querySelector(".legend-color-swatch");
+        var label = row.lastElementChild;
+        if (swatch) {
+          var sw = position(swatch.getBoundingClientRect());
+          var sc = window.getComputedStyle(swatch);
+          svgRect(root,sw.x,sw.y,sw.width,sw.height,{
+            fill:sc.backgroundColor,stroke:sc.borderTopColor,
+            "stroke-width":1,rx:3
+          });
+        }
+        if (label && label!==swatch) appendSvgText(label);
+      });
+      var emptyLegend = legend.querySelector("#legendEmptyMessage");
+      if (emptyLegend && window.getComputedStyle(emptyLegend).display!=="none") {
+        appendSvgText(emptyLegend);
+      }
+    }
+    return root;
+  }
+
+  function prepareSvg() {
+    return new Promise(function (resolve,reject) {
+      getReadyDiagram(function (area,canvas,connections) {
+        try {resolve(exportSvgDiagram(area,canvas,connections));}
+        catch (e) { reject(e); }
+      });
+    });
+  }
+
+  function saveSvg() {
+    if (editingBlocked("exporting SVG")) return;
+    prepareSvg().then(function (svg) {
+      var content = new XMLSerializer().serializeToString(svg);
+      var blob = new Blob([content], {type:"image/svg+xml;charset=utf-8"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href=url; a.download="driver-diagram.svg";
+      document.body.appendChild(a);
+      a.click(); a.remove();
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+    }).catch(function (error) {
+      console.error("P0 SVG export error",error);
+      notify("The SVG could not be created: " + error.message);
+    });
+  }
+
+
+  // Independent high-resolution PNG test; no html2canvas dependency.
+  function saveVectorPng() {
+    if (editingBlocked("exporting PNG")) return;
+    prepareSvg().then(function (svg) {
+      var content = new XMLSerializer().serializeToString(svg);
+      var svgUrl = URL.createObjectURL(new Blob([content], {
+        type:"image/svg+xml;charset=utf-8"
+      }));
+      return new Promise(function (resolve,reject) {
+        var image = new Image();
+        image.onload=function () {
+          try {
+            var width=Number(svg.getAttribute("width"));
+            var height=Number(svg.getAttribute("height"));
+            var scale=3;
+            var surface=document.createElement("canvas");
+            surface.width=Math.round(width*scale);
+            surface.height=Math.round(height*scale);
+            var ctx=surface.getContext("2d");
+            if (!ctx) throw new Error("The browser could not create a PNG canvas.");
+            ctx.fillStyle="#ffffff";
+            ctx.fillRect(0,0,surface.width,surface.height);
+            ctx.drawImage(image,0,0,surface.width,surface.height);
+            surface.toBlob(function (blob) {
+              if (blob) resolve(blob);
+              else reject(new Error("PNG encoding failed."));
+            },"image/png");
+          } catch (error) { reject(error); }
+          finally {URL.revokeObjectURL(svgUrl);}
+        };
+        image.onerror=function () {
+          URL.revokeObjectURL(svgUrl);
+          reject(new Error("The browser could not render the vector diagram."));
+        };
+        image.src=svgUrl;
+      });
+    }).then(function (blob) {
+      var url=URL.createObjectURL(blob);
+      var link=document.createElement("a");
+      link.href=url;
+      link.download="driver-diagram.png";
+      document.body.appendChild(link);
+      link.click();link.remove();
+      window.setTimeout(function () {URL.revokeObjectURL(url);},30000);
+    }).catch(function (error) {
+      console.error("P0 vector PNG export error",error);
+      notify("The experimental PNG export failed: " + error.message);
+    });
+  }
+
+  function install() {
+    var menu = document.getElementById("exportChartMenu");
+    if (!menu) return;
+
+    [
+      ["btnExportVectorPdf", printPreview],
+      ["btnExportVectorPng", saveVectorPng],
+      ["btnExportVectorSvg", saveSvg]
+    ].forEach(function (entry) {
+      var button = document.getElementById(entry[0]);
+      if (!button) return;
+      button.addEventListener("click", function () {
+        menu.open = false;
+        entry[1]();
+      });
+    });
+
+    // An open export menu should behave like a compact toolbar menu.
+    document.addEventListener("pointerdown", function (event) {
+      if (menu.open && !menu.contains(event.target)) menu.open = false;
+    });
+    menu.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && menu.open) {
+        event.preventDefault();
+        event.stopPropagation();
+        menu.open = false;
+        var summary = menu.querySelector("summary");
+        if (summary) summary.focus();
+      }
+    });
+  }
+
+  // Public methods support a small export regression suite.
+  window.driverExport = {
+    printPreview:printPreview,
+    prepareSvg:prepareSvg,
+    saveVectorPng:saveVectorPng,
+    saveSvg:saveSvg
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded",install,{once:true});
+  } else {
+    install();
+  }
+})();

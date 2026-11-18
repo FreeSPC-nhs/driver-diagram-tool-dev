@@ -10,11 +10,7 @@
 
   <!-- PapaParse for CSV import/export -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.5.2/papaparse.min.js"></script>
-  <!-- html2canvas + html2pdf for PNG/PDF export -->
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
+  <!-- Export code is part of driver.js; no screenshot or PDF library required. -->
 </head>
 <body>
   <header class="app-header">
@@ -22,7 +18,7 @@
       <h1>Driver Diagram Tool</h1>
       <p class="info">
         Create and edit a driver diagram with an aim, drivers, change ideas and
-  measures. Save your work or download it as an image or PDF.
+  measures. Save your work or export a PNG, SVG or vector PDF.
       </p>
     </div>
     <div class="header-buttons">
@@ -52,12 +48,45 @@
   AI guidance
 </button>
 
-<button id="btnHelp">Help</button>      
-	<button id="btnToggleControls">Hide editing panel</button>
-      <button id="toggleLegendBtn">Hide key</button>
-      <button id="btnHeaderClear">Start new diagram</button>
-      <button id="btnExportPng">Download image</button>
-      <button id="btnExportPdf">Download PDF</button>
+<button id="btnHelp" type="button">Help</button>
+
+      <button id="btnToggleControls" type="button" class="toolbar-icon-button"
+              aria-controls="controlsPanel" aria-expanded="true"
+              aria-label="Hide editing panel" title="Hide editing panel">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+             fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2.5" y="4" width="19" height="16" rx="2"/>
+          <path d="M9 4v16"/>
+          <path class="panel-close-indicator" d="M15.5 9l-3 3 3 3"/>
+          <path class="panel-open-indicator" d="M12.5 9l3 3-3 3"/>
+        </svg>
+      </button>
+
+      <button id="btnHeaderClear" type="button">Start new diagram</button>
+
+      <details id="exportChartMenu" class="export-chart-menu">
+        <summary aria-label="Export chart as PDF, PNG or SVG">
+          Export chart <span aria-hidden="true">▾</span>
+        </summary>
+        <div class="export-chart-choices" role="group" aria-label="Choose export format">
+          <button type="button" id="btnExportVectorPdf"
+                  title="Vector PDF for sharing or printing; selectable text and A3, A2, A1 page options">
+            <strong>PDF</strong>
+            <small>Print-ready, selectable text</small>
+          </button>
+          <button type="button" id="btnExportVectorPng"
+                  title="High-resolution PNG image for PowerPoint, reports or email">
+            <strong>PNG</strong>
+            <small>High-resolution image</small>
+          </button>
+          <button type="button" id="btnExportVectorSvg"
+                  title="Scalable SVG vector graphic for design and publishing">
+            <strong>SVG</strong>
+            <small>Scalable vector graphic</small>
+          </button>
+        </div>
+      </details>
     </div>
   </header>
 
@@ -114,30 +143,86 @@
   </div>
 
 
-  <!-- Colours: one popup shared with the diagram -->
-  <h2 class="collapsible-header" data-target="sectionColourOptions">
-    <span>2. Colours and key</span>
-    <span class="colour-help-wrap">
-      <button type="button" id="colourHelpButton" class="colour-help-button"
-        aria-label="Help with colours" aria-describedby="colourHelpText">?</button>
-      <span id="colourHelpText" class="colour-help-tooltip" role="tooltip">
-        Use named colours to show themes, teams or workstreams.
-        Names appear in the key, not inside diagram boxes.
-      </span>
-    </span>
-    <span class="collapsible-indicator">▾</span>
-  </h2>
+  <!-- Colour options -->
 
-  <div id="sectionColourOptions" class="collapsible-section is-collapsed">
+<h2 class="collapsible-header" data-target="sectionColourOptions">
+  <span>2. Colours and key</span>
+  <span class="collapsible-indicator">▾</span>
+</h2>
 
-    <button type="button" id="btnSidebarColourPalette" class="secondary colour-add-button">
-      + Add colour
+<div id="sectionColourOptions" class="collapsible-section is-collapsed">
+  <p class="small">
+    Use colours to identify themes, teams, workstreams or priority areas.
+    Add a new colour below, or select <strong>Edit</strong> next to an
+    existing colour.
+  </p>
+
+  <h3 id="colorEditorTitle" class="colour-editor-title">
+    Add a new colour
+  </h3>
+
+
+
+<p class="small">
+  Add a colour from the standard palette, or choose a custom
+  colour instead. Give it a name to explain what it represents.
+  Only colours you add appear in Your colours and the key.
+</p>
+
+  <button type="button"
+        id="btnSidebarColourPalette"
+        class="secondary">
+  Add a colour…
+</button>
+
+<details id="sidebarCustomColourDetails">
+  <summary>Custom colour / edit existing colours…</summary>
+
+<label for="colorLabelInput">Colour name</label>
+
+  <input
+    id="colorLabelInput"
+    type="text"
+    placeholder="e.g. Workforce workstream">
+
+  <label for="colorValueInput">Choose colour</label>
+  <input
+    id="colorValueInput"
+    type="color"
+    value="#fff7cc">
+
+  <div class="buttons colour-form-actions">
+    <button
+      id="addColorBtn"
+      type="button"
+      class="secondary">
+      Add colour
     </button>
 
-    <h3 class="colour-list-title">Your colours</h3>
-    <ul id="colorOptionsList" class="color-options-list"></ul>
-    <p id="colorEditStatus" class="colour-visually-hidden" role="status" aria-live="polite"></p>
+    <button
+      id="cancelColorEditBtn"
+      type="button"
+      class="secondary"
+      hidden>
+      Cancel
+    </button>
   </div>
+</details>
+
+  <p
+    id="colorEditStatus"
+    class="small colour-edit-status"
+    aria-live="polite">
+  </p>
+
+  <h3 class="colour-list-title">Your colours</h3>
+
+  <ul
+    id="colorOptionsList"
+    class="color-options-list">
+  </ul>
+</div>
+
 
 <!-- Diagram appearance -->
   <h2 class="collapsible-header" data-target="sectionAppearance">
@@ -361,6 +446,7 @@
 </div>
 
 <!-- Export area: diagram + legend (used for PNG/PDF export) -->
+      <div id="diagramExportShell">
       <div id="exportArea">
         <div id="diagramCanvasWrapper">
           <div id="diagramCanvas">
@@ -387,6 +473,18 @@
 	 </div>
 	</div>
       </div>
+      <button id="toggleLegendBtn" type="button" class="key-visibility-icon"
+              aria-controls="legendContainer" aria-pressed="true"
+              aria-label="Hide key" title="Hide key">
+        <svg viewBox="0 0 24 24" width="19" height="19"
+             fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/>
+          <circle cx="12" cy="12" r="2.8"/>
+          <path class="key-hidden-slash" d="M3 21 21 3"/>
+        </svg>
+      </button>
+      </div> <!-- #diagramExportShell: key icon stays outside exported chart -->
 
     </section>
   </main>
@@ -657,7 +755,7 @@
     <p>
       The diagram updates as you add, edit, move, connect or colour items.
       You can save an editable copy of your work or download the finished
-      diagram as an image or PDF.
+      diagram as a PNG, SVG or PDF.
     </p>
 
     <p class="faq-question">1. Understanding the diagram</p>
@@ -779,8 +877,7 @@
         The key updates automatically when changes are confirmed.
       </li>
       <li>
-        Use <strong>Hide key</strong> or <strong>Show key</strong>
-        to control whether the key appears.
+        Use the eye icon just below the key to hide or show it.
       </li>
     </ul>
 
@@ -789,7 +886,7 @@
 
     <ul>
       <li>
-        Open <strong>Diagram style</strong> in the editing panel.
+        Open <strong>Diagram appearance</strong> in the editing panel.
       </li>
       <li>
         You can adjust box height, spacing, font size, font family and
@@ -873,20 +970,21 @@
 
     <ul>
       <li>
-        Use <strong>Download image</strong> to create a PNG image for
-        presentations, reports or documents.
+        Choose <strong>Export chart</strong> in the top toolbar. Select
+        <strong>PNG</strong> for presentations, <strong>SVG</strong> for a
+        scalable vector image, or <strong>PDF</strong> for professional sharing
+        and printing.
       </li>
       <li>
-        Use <strong>Download PDF</strong> to create a PDF version for
-        sharing or printing.
+        The PDF option opens a print-ready view with A3, A2 and A1 landscape
+        choices and a text-readability estimate. Select
+        <strong>Print / Save as PDF</strong>, then choose your browser's
+        <strong>Save as PDF</strong> destination. Check paper size and enable
+        background graphics if your print dialog requires it.
       </li>
       <li>
-        Editing controls are hidden automatically from downloaded images
-        and PDFs.
-      </li>
-      <li>
-        The diagram, measures and key are included in the downloaded output
-        when they are visible.
+        Editing controls are excluded from exported charts, and the diagram,
+        measures and visible key are included.
       </li>
     </ul>
 
@@ -894,16 +992,12 @@
 
     <ul>
       <li>
-        <strong>Hide editing panel:</strong> gives the diagram more room
-        on the screen.
+        Use the panel icon in the top toolbar to hide or restore the
+        editing panel and give the diagram more space.
       </li>
       <li>
-        <strong>Show editing panel:</strong> brings the editing options
-        back.
-      </li>
-      <li>
-        <strong>Hide key:</strong> removes the colour and measures key
-        from view and from the downloaded output.
+        Use the eye icon just below the key to hide or restore the colour
+        and measures key. A hidden key is excluded from exports.
       </li>
       <li>
         <strong>Help:</strong> opens this guidance.
@@ -944,7 +1038,7 @@
         be scrolled sideways.
       </li>
       <li>
-        To download PNG or PDF, the tool uses the visual Diagram
+        To export PNG, SVG or PDF, the tool uses the visual Diagram
         view. Save editable HTML or CSV backups to keep working
         on your diagram.
       </li>
@@ -1033,7 +1127,6 @@
 
 
 <script src="driver.js"></script>
-<script src="export-prototypes.js" data-export-p0></script>
 </body>
 </html>
 

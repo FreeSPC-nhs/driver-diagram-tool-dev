@@ -41,27 +41,9 @@
 </button>
 
 
-	<button id="btnAiGuidance"
-        type="button"
-        aria-haspopup="dialog"
-        aria-controls="aiGuidanceDialog">
-  AI guidance
-</button>
 
-<button id="btnHelp" type="button">Help</button>
 
-      <button id="btnToggleControls" type="button" class="toolbar-icon-button"
-              aria-controls="controlsPanel" aria-expanded="true"
-              aria-label="Hide editing panel" title="Hide editing panel">
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
-             fill="none" stroke="currentColor" stroke-width="1.8"
-             stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2.5" y="4" width="19" height="16" rx="2"/>
-          <path d="M9 4v16"/>
-          <path class="panel-close-indicator" d="M15.5 9l-3 3 3 3"/>
-          <path class="panel-open-indicator" d="M12.5 9l3 3-3 3"/>
-        </svg>
-      </button>
+
 
       <button id="btnHeaderClear" type="button">Start new diagram</button>
 
@@ -87,12 +69,33 @@
           </button>
         </div>
       </details>
+
+      <button id="btnHelp" type="button">Help</button>
+      <button id="btnAiGuidance"
+              type="button"
+              aria-haspopup="dialog"
+              aria-controls="aiGuidanceDialog">AI guidance</button>
     </div>
   </header>
 
   <main>
-    <!-- Left column: data entry + CSV + colours -->
-    <section class="card" id="controlsPanel">
+    <!-- Left column: editing controls, with an always-visible toggle. -->
+    <div id="sidebarDock">
+      <div class="sidebar-toggle-row">
+        <button id="btnToggleControls" type="button" class="toolbar-icon-button"
+              aria-controls="controlsPanel" aria-expanded="true"
+              aria-label="Hide editing panel" title="Hide editing panel">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+             fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2.5" y="4" width="19" height="16" rx="2"/>
+          <path d="M9 4v16"/>
+          <path class="panel-close-indicator" d="M15.5 9l-3 3 3 3"/>
+          <path class="panel-open-indicator" d="M12.5 9l3 3-3 3"/>
+        </svg>
+        </button>
+      </div>
+      <section class="card" id="controlsPanel">
  
   <!-- Import / export -->
   <h2 class="collapsible-header" data-target="sectionImportExport">
@@ -306,7 +309,7 @@
     </div>
   </div>
 </section>
-
+    </div> <!-- #sidebarDock: keeps the toggle available when panel is hidden -->
 
     <!-- Right column: diagram + legend + table -->
     <section class="card" id="diagramArea">

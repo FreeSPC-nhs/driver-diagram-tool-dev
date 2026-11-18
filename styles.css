@@ -2642,16 +2642,6 @@ dialog.quick-colour-dialog {
 
 /* ---------- Production export dropdown and unobtrusive panel/key toggles ---------- */
 
-.header-buttons .toolbar-icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 34px;
-  min-width: 36px;
-  padding: 4px;
-  border-radius: 6px;
-}
 .toolbar-icon-button svg { display: block; }
 .toolbar-icon-button[aria-expanded="true"] .panel-open-indicator { display: none; }
 .toolbar-icon-button[aria-expanded="false"] .panel-close-indicator { display: none; }
@@ -2748,3 +2738,52 @@ dialog.quick-colour-dialog {
 }
 #toggleLegendBtn[aria-pressed="true"] .key-hidden-slash { display: none; }
 #diagramArea.is-outline-view #diagramExportShell { display: none !important; }
+
+
+/* Sidebar toggle next to the editing panel, not in the blue header. */
+#sidebarDock {
+  position: relative;
+  min-width: 0;
+}
+
+.sidebar-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.sidebar-toggle-row .toolbar-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 36px;
+  height: 32px;
+  padding: 4px;
+  border: 1px solid #b8cce3;
+  border-radius: 6px;
+  background: #eef5fc;
+  color: #005eb8;
+}
+.sidebar-toggle-row .toolbar-icon-button:hover { background: #dbeafe; }
+.sidebar-toggle-row .toolbar-icon-button:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+
+/* When hidden, preserve a narrow rail so the icon can reopen the panel. */
+main.sidebar-collapsed {
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 0.7rem;
+}
+
+/* At mobile widths, keep one column and a small control row above the diagram. */
+@media (max-width: 900px) {
+  main.sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  main.sidebar-collapsed .sidebar-toggle-row {
+    justify-content: flex-start;
+    margin-bottom: 0;
+  }
+}

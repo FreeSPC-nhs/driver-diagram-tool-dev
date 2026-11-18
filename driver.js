@@ -4530,7 +4530,10 @@ function downloadPortableHtml() {
       var panelInCopy = htmlClone.querySelector("#controlsPanel");
       if (panelInCopy) panelInCopy.style.display = "";
       var mainInCopy = htmlClone.querySelector("main");
-      if (mainInCopy) mainInCopy.style.gridTemplateColumns = "";
+      if (mainInCopy) {
+        mainInCopy.style.gridTemplateColumns = "";
+        mainInCopy.classList.remove("sidebar-collapsed");
+      }
       var panelButtonInCopy = htmlClone.querySelector("#btnToggleControls");
       if (panelButtonInCopy) {
         panelButtonInCopy.setAttribute("aria-expanded", "true");
@@ -6580,25 +6583,20 @@ function initialiseDiagramViewSwitch() {
 function toggleControlsVisibility() {
   var panel = document.getElementById("controlsPanel");
   var btn = document.getElementById("btnToggleControls");
-  var layout = document.querySelector("main"); // the 2-column grid
+  var layout = document.querySelector("main");
   if (!panel || !btn || !layout) return;
 
   controlsVisible = !controlsVisible;
   panel.style.display = controlsVisible ? "" : "none";
+  layout.classList.toggle("sidebar-collapsed", !controlsVisible);
+
   var label = controlsVisible ? "Hide editing panel" : "Show editing panel";
   btn.setAttribute("aria-label", label);
   btn.title = label;
   btn.setAttribute("aria-expanded", controlsVisible ? "true" : "false");
 
-  // When controls are hidden, make the diagram take full width;
-  // when shown, revert to the original 2-column layout.
-  if (controlsVisible) {
-    layout.style.gridTemplateColumns = ""; // fall back to CSS (two columns)
-  } else {
-    layout.style.gridTemplateColumns = "minmax(0, 1fr)"; // single column
-  }
-
-  // Recalculate node positions and redraw connection lines after layout change
+  // The icon stays in the sidebar dock, even when the panel is hidden.
+  // CSS handles full-width and narrow-screen layouts.
   if (window.requestAnimationFrame) {
     window.requestAnimationFrame(updateAllViews);
   } else {

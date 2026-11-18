@@ -4528,7 +4528,7 @@ function downloadPortableHtml() {
 
 // Keep experimental export controls out of saved diagrams.
 htmlClone.querySelectorAll(
-  'script[data-export-p0], #btnP0VectorPdf, #btnP0ExportSvg'
+  'script[data-export-p0], #btnP0VectorPdf, #btnP0ExportSvg, #btnP0ExportPng'
 ).forEach(function (element) {
   element.remove();
 });

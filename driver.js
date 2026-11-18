@@ -6592,6 +6592,8 @@ function toggleControlsVisibility() {
 /* Shared capture options for PNG and PDF exports. */
 
 /* Shared capture options for PNG and PDF exports. */
+
+/* Capture options shared by PNG and PDF. */
 function diagramExportCanvasOptions(scale) {
   return {
     scale: scale || 3,
@@ -6600,44 +6602,107 @@ function diagramExportCanvasOptions(scale) {
     backgroundColor: "#ffffff",
 
     onclone: function (clonedDocument) {
-      // Give measure words explicit spacing in the
-      // export copy, without altering the live diagram.
+      // Preserve layout, but hide measure text in the
+      // capture copy. We draw it accurately afterwards.
       clonedDocument.querySelectorAll(
         ".diagram-measure-row > span:last-child"
-      ).forEach(function (textSpan) {
-
-        var originalText = textSpan.textContent || "";
-        var lines = originalText.split(/\r?\n/);
-
-        textSpan.textContent = "";
-
-        lines.forEach(function (line, lineIndex) {
-          if (lineIndex > 0) {
-            textSpan.appendChild(
-              clonedDocument.createElement("br")
-            );
-          }
-
-          var words = line.trim().split(/\s+/).filter(Boolean);
-
-          words.forEach(function (word, index) {
-            var wordSpan = clonedDocument.createElement("span");
-
-            wordSpan.textContent = word;
-            wordSpan.style.display = "inline-block";
-            wordSpan.style.whiteSpace = "nowrap";
-
-            // Explicit space between words, rather than
-            // relying on html2canvas's text spacing.
-            wordSpan.style.marginRight =
-              index < words.length - 1 ? "0.32em" : "0";
-
-            textSpan.appendChild(wordSpan);
-          });
-        });
+      ).forEach(function (span) {
+        span.style.setProperty(
+          "visibility", "hidden", "important"
+        );
       });
     }
   };
+}
+
+/* Draw measure text using actual browser word positions. */
+function restoreMeasureTextOnCanvas(canvas) {
+  var exportArea = document.getElementById("exportArea");
+  if (!exportArea || !canvas) return canvas;
+
+  var areaRect = exportArea.getBoundingClientRect();
+  if (!areaRect.width || !areaRect.height) return canvas;
+
+  var ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+
+  var scaleX = canvas.width / areaRect.width;
+  var scaleY = canvas.height / areaRect.height;
+
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+  ctx.textBaseline = "top";
+  ctx.textAlign = "left";
+
+  exportArea.querySelectorAll(
+    ".diagram-measure-row > span:last-child"
+  ).forEach(function (span) {
+    var styles = window.getComputedStyle(span);
+
+    ctx.font = [
+      styles.fontStyle,
+      styles.fontWeight,
+      styles.fontSize,
+      styles.fontFamily
+    ].join(" ");
+
+    ctx.fillStyle = styles.color;
+
+    function drawPiece(text, rect) {
+      if (!rect || !rect.width || !rect.height) return;
+
+      ctx.fillText(
+        text,
+        rect.left - areaRect.left,
+        rect.top - areaRect.top
+      );
+    }
+
+    // In the live diagram, measure labels contain
+    // ordinary text nodes. Use their real positions.
+    Array.from(span.childNodes).forEach(function (textNode) {
+      if (textNode.nodeType !== 3) return;
+
+      var text = textNode.nodeValue || "";
+      var wordPattern = /\S+/g;
+      var match;
+      var range = document.createRange();
+
+      while ((match = wordPattern.exec(text)) !== null) {
+        range.setStart(textNode, match.index);
+        range.setEnd(
+          textNode,
+          match.index + match[0].length
+        );
+
+        var rects = range.getClientRects();
+
+        if (rects.length === 1) {
+          drawPiece(match[0], rects[0]);
+        } else {
+          // Rare case: a very long word wraps in
+          // the middle. Draw its characters separately.
+          var position = match.index;
+
+          Array.from(match[0]).forEach(function (character) {
+            range.setStart(textNode, position);
+            position += character.length;
+            range.setEnd(textNode, position);
+
+            drawPiece(
+              character,
+              range.getBoundingClientRect()
+            );
+          });
+        }
+      }
+
+      range.detach();
+    });
+  });
+
+  ctx.restore();
+  return canvas;
 }
 
 
@@ -6803,6 +6868,7 @@ return html2canvas(
     .then(function (canvas) {
       exportArea.classList.remove("export-clean");
       if (!canvas) return;
+      restoreMeasureTextOnCanvas(canvas);
 
       canvas.toBlob(function (blob) {
         if (!blob) return;
@@ -6887,6 +6953,8 @@ function exportDiagramPdf() {
       // Centre it on the page.
       var x = (pageWidth - imageWidth) / 2;
       var y = (pageHeight - imageHeight) / 2;
+
+      restoreMeasureTextOnCanvas(canvas);
 
       pdf.addImage(
         canvas.toDataURL("image/png"),

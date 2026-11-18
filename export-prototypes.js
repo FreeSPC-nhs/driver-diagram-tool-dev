@@ -1,7 +1,7 @@
 /*
  * Driver Diagram Tool — P0 export comparison (experimental, non-destructive)
  * Adds two TEST buttons. Existing PNG/PDF export functions are not changed.
- * Version: 2026-11-18-p0a
+ * Version: 2026-11-18-p0b
  */
 (function () {
   "use strict";
@@ -212,52 +212,71 @@
       };
       var range = document.createRange();
       var walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      var textNode;
-      var words = 0;
-      function appendRun(string, rect) {
-        if (!string || !rect || !rect.width || !rect.height) return;
-        var pt = position(rect);
-        var text = svgElement("text", Object.assign({},fontAttrs,{
-          x:pt.x, y:pt.y
-        }));
-        text.textContent = style.textTransform === "uppercase"
-          ? string.toUpperCase() : (style.textTransform === "lowercase"
-            ? string.toLowerCase() : string);
-        group.appendChild(text);
-        words++;
+      var textNode, runs = [];
+      function addRun(word, rect, separated) {
+        if (!word || !rect || !rect.width || !rect.height) return;
+        runs.push({word:word, x:rect.left-base.left,
+          y:rect.top-base.top, separated:separated !== false});
       }
       while ((textNode = walker.nextNode())) {
         var value = textNode.nodeValue || "";
-        var re = /\S+/gu;
-        var match;
+        var re = /\S+/gu, match;
         while ((match = re.exec(value))) {
           range.setStart(textNode,match.index);
           range.setEnd(textNode,match.index+match[0].length);
           var rects = range.getClientRects();
           if (rects.length === 1) {
-            appendRun(match[0],rects[0]);
+            addRun(match[0],rects[0],true);
           } else if (rects.length > 1) {
-            // When one long word wraps, group characters per rendered line.
-            var index = match.index;
-            var prevTop = null, run = "", firstRect = null;
+            // Split only a genuinely wrapped long word into line fragments.
+            var index = match.index, lineTop = null;
+            var fragment = "", firstRect = null, firstFragment = true;
             for (var ch of match[0]) {
               range.setStart(textNode,index);
               index += ch.length;
               range.setEnd(textNode,index);
-              var cr = range.getBoundingClientRect();
-              if (prevTop !== null && Math.abs(cr.top-prevTop)>2) {
-                appendRun(run,firstRect);
-                run="";
+              var charRect = range.getBoundingClientRect();
+              if (lineTop !== null && Math.abs(charRect.top-lineTop)>1.5) {
+                addRun(fragment,firstRect,firstFragment);
+                fragment="";
+                firstFragment=false;
               }
-              if (!run) firstRect=cr;
-              prevTop=cr.top;
-              run+=ch;
+              if (!fragment) firstRect=charRect;
+              lineTop=charRect.top;
+              fragment+=ch;
             }
-            appendRun(run,firstRect);
+            addRun(fragment,firstRect,firstFragment);
           }
         }
       }
-      if (words) root.appendChild(group);
+      // Keep the browser's actual line-break positions, but combine words
+      // on each line into ONE SVG text node. Individual word-positioned SVG
+      // elements can lose visible spaces in independent SVG renderers.
+      var lines=[];
+      runs.forEach(function (run) {
+        var line=lines.find(function (candidate) {
+          return Math.abs(candidate.y-run.y)<1.5;
+        });
+        if (!line) {
+          line={y:run.y, x:run.x, words:[]};
+          lines.push(line);
+        }
+        line.words.push(run);
+      });
+      lines.forEach(function (line) {
+        line.words.sort(function (a,b) { return a.x-b.x; });
+        var content=line.words.map(function (run,index) {
+          return (index && run.separated ? " " : "") + run.word;
+        }).join("");
+        if (style.textTransform === "uppercase") content=content.toUpperCase();
+        else if (style.textTransform === "lowercase") content=content.toLowerCase();
+        var text=svgElement("text",Object.assign({},fontAttrs,{
+          x:line.words[0].x,y:line.y
+        }));
+        text.textContent=content;
+        group.appendChild(text);
+      });
+      if (lines.length) root.appendChild(group);
     }
     // Headings.
     area.querySelectorAll(".diagram-column-title").forEach(appendSvgText);
@@ -338,6 +357,57 @@
     });
   }
 
+
+  // Independent high-resolution PNG test; no html2canvas dependency.
+  function saveVectorPng() {
+    if (editingBlocked("testing vector PNG export")) return;
+    prepareSvg().then(function (svg) {
+      var content = new XMLSerializer().serializeToString(svg);
+      var svgUrl = URL.createObjectURL(new Blob([content], {
+        type:"image/svg+xml;charset=utf-8"
+      }));
+      return new Promise(function (resolve,reject) {
+        var image = new Image();
+        image.onload=function () {
+          try {
+            var width=Number(svg.getAttribute("width"));
+            var height=Number(svg.getAttribute("height"));
+            var scale=3;
+            var surface=document.createElement("canvas");
+            surface.width=Math.round(width*scale);
+            surface.height=Math.round(height*scale);
+            var ctx=surface.getContext("2d");
+            if (!ctx) throw new Error("The browser could not create a PNG canvas.");
+            ctx.fillStyle="#ffffff";
+            ctx.fillRect(0,0,surface.width,surface.height);
+            ctx.drawImage(image,0,0,surface.width,surface.height);
+            surface.toBlob(function (blob) {
+              if (blob) resolve(blob);
+              else reject(new Error("PNG encoding failed."));
+            },"image/png");
+          } catch (error) { reject(error); }
+          finally {URL.revokeObjectURL(svgUrl);}
+        };
+        image.onerror=function () {
+          URL.revokeObjectURL(svgUrl);
+          reject(new Error("The browser could not render the vector diagram."));
+        };
+        image.src=svgUrl;
+      });
+    }).then(function (blob) {
+      var url=URL.createObjectURL(blob);
+      var link=document.createElement("a");
+      link.href=url;
+      link.download="driver-diagram-vector-TEST.png";
+      document.body.appendChild(link);
+      link.click();link.remove();
+      window.setTimeout(function () {URL.revokeObjectURL(url);},30000);
+    }).catch(function (error) {
+      console.error("P0 vector PNG export error",error);
+      notify("The experimental PNG export failed: " + error.message);
+    });
+  }
+
   function addButton(parent, label, handler, id) {
     if (document.getElementById(id)) return;
     var b = document.createElement("button");
@@ -354,9 +424,10 @@
     }
     addButton(panel,"Test vector PDF…",printPreview,"btnP0VectorPdf");
     addButton(panel,"Test SVG export",saveSvg,"btnP0ExportSvg");
+    addButton(panel,"Test vector PNG",saveVectorPng,"btnP0ExportPng");
   }
   // Expose only for automated validation; the production editor is untouched.
-  window.driverExportP0 = { printPreview:printPreview, prepareSvg:prepareSvg };
+  window.driverExportP0 = { printPreview:printPreview, prepareSvg:prepareSvg, saveVectorPng:saveVectorPng };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded",install,{once:true});
   } else { install(); }

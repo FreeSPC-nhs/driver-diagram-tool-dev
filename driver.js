@@ -818,262 +818,57 @@ function getLevelLabel(level) {
   return level;
 }
 
-/* ---------- Colour helpers ---------- */
+/* ---------- Colours and key: one shared popup ---------- */
 
-// Colour options: { label, value } where value is a hex colour (e.g. "#ffcc00")
+// Saved colours are identified by their hex values in existing diagrams.
 var colorOptions = [];
-
-// Track which colour is being edited using a stable key (the hex value), not an array index
-var editingColorValue = null;
-
-// Default shown when adding a new colour
+var editingColorValue = null; // Retained for older history/clear paths.
 var defaultNewColorValue = "#fff7cc";
 
 function findColorOptionByValue(value) {
   if (!value) return null;
-
   return colorOptions.find(function (option) {
-    return (
-      (option.value || "").toLowerCase() ===
-      value.toLowerCase()
-    );
+    return (option.value || "").toLowerCase() ===
+      String(value).toLowerCase();
   }) || null;
 }
 
-function getColorEditorElements() {
-  return {
-    title: document.getElementById("colorEditorTitle"),
-    labelInput: document.getElementById("colorLabelInput"),
-    valueInput: document.getElementById("colorValueInput"),
-    saveButton: document.getElementById("addColorBtn"),
-    cancelButton: document.getElementById("cancelColorEditBtn"),
-    status: document.getElementById("colorEditStatus")
-  };
+function resetColorEditorForm() {
+  // Compatibility with saved-project import and Undo/Redo.
+  editingColorValue = null;
+}
+
+function isColorEditorDirty() {
+  // The modal dialog now owns all unfinished colour edits.
+  return false;
 }
 
 function setColorEditorStatus(message, type) {
   var status = document.getElementById("colorEditStatus");
   if (!status) return;
-
   status.textContent = message || "";
-
-  status.classList.remove(
-    "is-warning",
-    "is-success"
-  );
-
-  if (type === "warning") {
-    status.classList.add("is-warning");
-  }
-
-  if (type === "success") {
-    status.classList.add("is-success");
-  }
-}
-
-function isColorEditorDirty() {
-  if (!editingColorValue) return false;
-
-  var elements = getColorEditorElements();
-  var option = findColorOptionByValue(editingColorValue);
-
-  if (
-    !option ||
-    !elements.labelInput ||
-    !elements.valueInput
-  ) {
-    return false;
-  }
-
-  var currentLabel =
-    (elements.labelInput.value || "").trim();
-
-  var currentValue =
-    (elements.valueInput.value || "").toLowerCase();
-
-  return (
-    currentLabel !== option.label ||
-    currentValue !==
-      (option.value || "").toLowerCase()
-  );
-}
-
-
-
-function updateColorEditorUi() {
-  var elements = getColorEditorElements();
-  var option = findColorOptionByValue(editingColorValue);
-  
-
-  /*
-    If the colour no longer exists, return safely to
-    add mode.
-  */
-  if (editingColorValue && !option) {
-    editingColorValue = null;
-  }
-
-  var isEditing = !!editingColorValue;
-
-  if (elements.title) {
-    elements.title.textContent = isEditing
-      ? "Edit colour: " + option.label
-      : "Add a new colour";
-  }
-
-  if (elements.saveButton) {
-    elements.saveButton.textContent = isEditing
-      ? "Save changes"
-      : "Add colour";
-
-    /*
-      While editing, Save changes remains disabled until
-      something has actually changed.
-    */
-       elements.saveButton.disabled =
-      isEditing && !isColorEditorDirty();
-  }
-
-  if (elements.cancelButton) {
-    elements.cancelButton.hidden = !isEditing;
-  }
-
-  
-}
-
-function handleColorEditorInput() {
-  updateColorEditorUi();
-
-  if (!editingColorValue) {
-    setColorEditorStatus("");
-    return;
-  }
-
-  var option = findColorOptionByValue(editingColorValue);
-
-  if (isColorEditorDirty()) {
-    setColorEditorStatus(
-      "Unsaved changes",
-      "warning"
-    );
-  } else if (option) {
-    setColorEditorStatus(
-      'Editing "' + option.label +
-      '". Change the name or colour, then select Save changes.'
-    );
-  }
-}
-
-
-function resetColorEditorForm() {
-  var elements = getColorEditorElements();
-
-  editingColorValue = null;
-
-var customDetails =
-  document.getElementById("sidebarCustomColourDetails");
-
-if (customDetails) customDetails.open = false;
-
-
-  if (elements.labelInput) {
-    elements.labelInput.value = "";
-  }
-
-  if (elements.valueInput) {
-    elements.valueInput.value = defaultNewColorValue;
-  }
-
-  setColorEditorStatus("");
-  updateColorEditorUi();
 }
 
 function beginColorEdit(value) {
-  var option = findColorOptionByValue(value);
-  if (!option) return;
-
-  /*
-    Protect unsaved work if the user selects Edit on a
-    different colour.
-  */
-  if (
-    editingColorValue &&
-    editingColorValue.toLowerCase() !==
-      value.toLowerCase() &&
-    isColorEditorDirty()
-  ) {
-    var discard = window.confirm(
-      "You have unsaved colour changes. " +
-      "Discard them and edit another colour?"
-    );
-
-    if (!discard) return;
-  }
-
-  var elements = getColorEditorElements();
-
-  editingColorValue = option.value;
-
-var customDetails =
-  document.getElementById("sidebarCustomColourDetails");
-
-if (customDetails) customDetails.open = true;
-
-  if (elements.labelInput) {
-    elements.labelInput.value = option.label;
-  }
-
-  if (elements.valueInput) {
-    elements.valueInput.value = option.value;
-  }
-  updateColorEditorUi();
-
-  setColorEditorStatus(
-    'Editing "' + option.label +
-    '". Change the name or colour, then select Save changes.'
-  );
-
-  renderColorOptionsList();
-
-  if (elements.labelInput) {
-    elements.labelInput.focus();
-    elements.labelInput.select();
-  }
+  if (!findColorOptionByValue(value)) return;
+  openQuickColourDialogForNode(null, { editValue: value });
 }
-
-function cancelColorEdit() {
-  resetColorEditorForm();
-  renderColorOptionsList();
-
-  setColorEditorStatus(
-    "Editing cancelled."
-  );
-}
-
 
 function initialiseColorEditor() {
-  var paletteButton =
-    document.getElementById("btnSidebarColourPalette");
-
-  if (paletteButton) {
-    paletteButton.addEventListener("click", function () {
-
-      // Protect an unfinished edit in the manual colour editor.
-      if (editingColorValue && isColorEditorDirty() &&
-          !window.confirm(
-            "Discard unsaved colour edits and open the palette?"
-          )) {
-        return;
-      }
-
-      resetColorEditorForm();
-
-      // No node ID means add to Your colours only.
+  var addButton = document.getElementById("btnSidebarColourPalette");
+  if (addButton) {
+    addButton.addEventListener("click", function () {
       openQuickColourDialogForNode(null);
     });
   }
 
-  resetColorEditorForm();
+  var helpButton = document.getElementById("colourHelpButton");
+  if (helpButton) {
+    // The help tooltip sits in a collapsible heading: don't toggle that heading.
+    helpButton.addEventListener("click", function (event) {
+      event.stopPropagation();
+    });
+  }
   renderColorOptionsList();
 }
 
@@ -1082,388 +877,124 @@ function refreshColorSelect() {
   if (!select) return;
 
   var currentValue = select.value;
-
   select.innerHTML = "";
-  var noneOption = document.createElement("option");
-  noneOption.value = "";
-  noneOption.textContent = "No colour";
-  select.appendChild(noneOption);
+  var noColour = document.createElement("option");
+  noColour.value = "";
+  noColour.textContent = "No colour";
+  select.appendChild(noColour);
 
   colorOptions.forEach(function (opt) {
-    var option = document.createElement("option");
-    option.value = opt.value;
-    option.textContent = opt.label + " (" + opt.value + ")";
-    select.appendChild(option);
+    var item = document.createElement("option");
+    item.value = opt.value;
+    item.textContent = opt.label + " (" + opt.value + ")";
+    select.appendChild(item);
   });
 
-  if (
-    currentValue &&
-    (currentValue === "" ||
-      colorOptions.some(function (c) {
-        return c.value === currentValue;
-      }))
-  ) {
-    select.value = currentValue;
-  }
+  if (Array.from(select.options).some(function (item) {
+    return item.value === currentValue;
+  })) select.value = currentValue;
 }
 
 function deleteColorOptionByValue(value) {
-  if (!value) return;
-
   var option = findColorOptionByValue(value);
   if (!option) return;
 
   var usageCount = nodes.filter(function (node) {
-    return (
-      (node.color || "").toLowerCase() ===
-      value.toLowerCase()
-    );
+    return (node.color || "").toLowerCase() ===
+      value.toLowerCase();
   }).length;
 
-  var message =
-    'Delete the colour "' + option.label + '"?';
-
-  if (usageCount > 0) {
-    message +=
-      "\n\nIt is currently used on " +
-      usageCount +
+  var message = 'Delete the colour "' + option.label + '"?';
+  if (usageCount) {
+    message += "\n\nIt is used on " + usageCount +
       (usageCount === 1 ? " box." : " boxes.") +
-      " Those boxes will return to having no colour.";
+      " These boxes will return to having no colour.";
   }
-
   if (!window.confirm(message)) return;
 
-  colorOptions = colorOptions.filter(function (item) {
-    return (
-      (item.value || "").toLowerCase() !==
-      value.toLowerCase()
-    );
+  colorOptions = colorOptions.filter(function (entry) {
+    return (entry.value || "").toLowerCase() !== value.toLowerCase();
   });
-
   nodes.forEach(function (node) {
-    if (
-      (node.color || "").toLowerCase() ===
-      value.toLowerCase()
-    ) {
+    if ((node.color || "").toLowerCase() === value.toLowerCase()) {
       node.color = "";
     }
   });
 
-  var deletedCurrentColour =
-    editingColorValue &&
-    editingColorValue.toLowerCase() ===
-      value.toLowerCase();
-
-  if (deletedCurrentColour) {
-    resetColorEditorForm();
-  }
-
   updateAllViews();
-
-  setColorEditorStatus(
-    'Colour "' + option.label + '" deleted.',
-    "success"
-  );
+  setColorEditorStatus('Colour "' + option.label + '" deleted.', "success");
 }
 
 function renderColorOptionsList() {
-  updateColorEditorUi();
-
-  var list =
-    document.getElementById("colorOptionsList");
-
+  var list = document.getElementById("colorOptionsList");
   if (!list) return;
-
   list.innerHTML = "";
 
-  if (colorOptions.length === 0) {
-    var emptyItem = document.createElement("li");
-
-    emptyItem.className =
-      "colour-options-empty";
-
-    emptyItem.textContent =
-      "No colours have been added yet.";
-
-    list.appendChild(emptyItem);
+  if (!colorOptions.length) {
+    var empty = document.createElement("li");
+    empty.className = "colour-options-empty";
+    empty.textContent = "No colours added yet.";
+    list.appendChild(empty);
     return;
   }
 
   colorOptions.forEach(function (option) {
-    var listItem =
-      document.createElement("li");
+    var row = document.createElement("li");
+    row.className = "colour-option-row";
 
-    listItem.className =
-      "colour-option-row";
+    var swatch = document.createElement("span");
+    swatch.className = "colour-option-swatch";
+    swatch.style.backgroundColor = option.value;
+    swatch.title = option.value.toUpperCase();
 
-    var isEditingThisColour =
-      editingColorValue &&
-      (option.value || "").toLowerCase() ===
-        editingColorValue.toLowerCase();
-
-    if (isEditingThisColour) {
-      listItem.classList.add("is-editing");
-    }
-
-    var swatch =
-      document.createElement("span");
-
-    swatch.className =
-      "colour-option-swatch";
-
-    swatch.style.backgroundColor =
-      option.value;
-
-    swatch.title = option.value;
-
-    var details =
-      document.createElement("div");
-
-    details.className =
-      "colour-option-details";
-
-    var name =
-      document.createElement("span");
-
-    name.className =
-      "colour-option-name";
-
+    var name = document.createElement("span");
+    name.className = "colour-option-name";
     name.textContent = option.label;
 
-    var valueText =
-      document.createElement("span");
+    var actions = document.createElement("span");
+    actions.className = "colour-option-actions";
 
-    valueText.className =
-      "colour-option-value";
-
-    valueText.textContent = option.value;
-
-    details.appendChild(name);
-    details.appendChild(valueText);
-
-    var actions =
-      document.createElement("div");
-
-    actions.className =
-      "colour-option-actions";
-
-    var editButton =
-      document.createElement("button");
-
+    var editButton = document.createElement("button");
     editButton.type = "button";
-    editButton.className =
-      "colour-row-button";
+    editButton.className = "colour-row-button";
+    editButton.textContent = "Edit";
+    editButton.setAttribute("aria-label", "Edit " + option.label);
+    editButton.addEventListener("click", function () {
+      beginColorEdit(option.value);
+    });
 
-    editButton.textContent =
-      isEditingThisColour
-        ? "Editing"
-        : "Edit";
-
-    editButton.disabled =
-      !!isEditingThisColour;
-
-    editButton.setAttribute(
-      "aria-label",
-      "Edit " + option.label
-    );
-
-    editButton.addEventListener(
-      "click",
-      function () {
-        beginColorEdit(option.value);
-      }
-    );
-
-    var deleteButton =
-      document.createElement("button");
-
+    var deleteButton = document.createElement("button");
     deleteButton.type = "button";
-    deleteButton.className =
-      "colour-row-button delete";
-
-    deleteButton.textContent = "Delete";
-
-    deleteButton.setAttribute(
-      "aria-label",
-      "Delete " + option.label
-    );
-
-    deleteButton.addEventListener(
-      "click",
-      function () {
-        deleteColorOptionByValue(
-          option.value
-        );
-      }
-    );
+    deleteButton.className = "colour-row-button delete";
+    deleteButton.textContent = "🗑";
+    deleteButton.title = "Delete " + option.label;
+    deleteButton.setAttribute("aria-label", "Delete " + option.label);
+    deleteButton.addEventListener("click", function () {
+      deleteColorOptionByValue(option.value);
+    });
 
     actions.appendChild(editButton);
     actions.appendChild(deleteButton);
-
-    listItem.appendChild(swatch);
-    listItem.appendChild(details);
-    listItem.appendChild(actions);
-
-    list.appendChild(listItem);
+    row.appendChild(swatch);
+    row.appendChild(name);
+    row.appendChild(actions);
+    list.appendChild(row);
   });
 }
 
-function addColorOptionFromForm() {
-  var labelInput =
-    document.getElementById("colorLabelInput");
-
-  var valueInput =
-    document.getElementById("colorValueInput");
-
-  if (!labelInput || !valueInput) return;
-
-  var label =
-    (labelInput.value || "").trim();
-
-  var value =
-    (valueInput.value || "")
-      .trim()
-      .toLowerCase();
-
-  if (!label) {
-    alert("Please enter a name for this colour.");
-    labelInput.focus();
-    return;
-  }
-
-  if (!/^#[0-9a-f]{6}$/i.test(value)) {
-    alert("Please choose a valid colour.");
-    valueInput.focus();
-    return;
-  }
-
-  var isEditing = !!editingColorValue;
-
-  if (isEditing) {
-    var oldValue = editingColorValue;
-    var target =
-      findColorOptionByValue(oldValue);
-
-    if (!target) {
-      alert(
-        "The colour being edited could not be found. " +
-        "Please select it again."
-      );
-
-      resetColorEditorForm();
-      renderColorOptionsList();
-      return;
-    }
-
-    /*
-      Prevent two palette entries from having the same
-      hex value. Nodes store the hex value, so duplicates
-      would be ambiguous.
-    */
-    var duplicate = colorOptions.find(
-      function (option) {
-        return (
-          (option.value || "").toLowerCase() ===
-            value &&
-          (option.value || "").toLowerCase() !==
-            oldValue.toLowerCase()
-        );
-      }
-    );
-
-    if (duplicate) {
-      alert(
-        'That colour is already used by "' +
-        duplicate.label +
-        '". Please choose a different colour.'
-      );
-
-      valueInput.focus();
-      return;
-    }
-
-    target.label = label;
-    target.value = value;
-
-    /*
-      Update every box that used the old colour.
-    */
-    nodes.forEach(function (node) {
-      if (
-        (node.color || "").toLowerCase() ===
-        oldValue.toLowerCase()
-      ) {
-        node.color = value;
-      }
-    });
-
-    resetColorEditorForm();
-    updateAllViews();
-
-    setColorEditorStatus(
-      'Colour "' + label + '" updated.',
-      "success"
-    );
-
-    return;
-  }
-
-  /*
-    Adding a new colour.
-  */
-  var existing =
-    findColorOptionByValue(value);
-
-  if (existing) {
-    alert(
-      'That colour is already in your list as "' +
-      existing.label +
-      '". Use its Edit button to change it.'
-    );
-
-    return;
-  }
-
-  colorOptions.push({
-    label: label,
-    value: value
-  });
-
-  resetColorEditorForm();
-  updateAllViews();
-
-  setColorEditorStatus(
-    'Colour "' + label + '" added.',
-    "success"
-  );
-}
-
-// When importing CSV, we may see colour values that aren't in colorOptions yet.
-// Build default labels like "Colour 1", "Colour 2", ...
+// CSV imports can supply hex colours without names.
 function rebuildColorOptionsFromNodes() {
   var seen = {};
-  nodes.forEach(function (n) {
-    if (n.color) {
-      seen[n.color] = true;
-    }
+  nodes.forEach(function (node) {
+    if (node.color) seen[node.color.toLowerCase()] = true;
   });
-
-  colorOptions = [];
-  var index = 1;
-  for (var value in seen) {
-    if (!seen.hasOwnProperty(value)) continue;
-    colorOptions.push({
-      label: "Colour " + index,
-      value: value
-    });
-    index++;
-  }
-
+  colorOptions = Object.keys(seen).map(function (value, index) {
+    return { label: "Colour " + (index + 1), value: value };
+  });
   resetColorEditorForm();
   refreshColorSelect();
   renderColorOptionsList();
 }
-
 
 // Convert hex colour to { r, g, b }
 function hexToRgb(hex) {
@@ -4566,12 +4097,6 @@ function clearAllNodes() {
   colorOptions = [];
   editingColorValue = null;
 
-  // Clear colour form inputs
-  var labelInput = document.getElementById("colorLabelInput");
-  var valueInput = document.getElementById("colorValueInput");
-  if (labelInput) labelInput.value = "";
-  if (valueInput) valueInput.value = "#fff7cc";
-
   updateNextIdFromNodes();
   ensureDefaultAim();
   updateAllViews();
@@ -7360,123 +6885,11 @@ function previewInlineColour(nodeId, colour, newOption) {
 }
 
 function showInlineColourMenu(nodeId, trigger) {
+  // Both entry points now open the identical 24-colour popup.
   if (!activeDiagramTextEdit ||
       activeDiagramTextEdit.id !== nodeId) return;
-
-  if (closeInlineColourMenu) {
-    dismissInlineColourMenu();
-    return;
-  }
-
-  var menu = document.createElement("div");
-  menu.className = "diagram-inline-colour-menu";
-  menu.setAttribute("role", "group");
-  menu.setAttribute("aria-label", "Choose element colour");
-
-  var heading = document.createElement("div");
-  heading.className = "diagram-inline-colour-heading";
-  heading.textContent = "Box colour";
-  menu.appendChild(heading);
-
-  function addChoice(name, colour, action) {
-    var button = document.createElement("button");
-    button.type = "button";
-    button.className = "diagram-inline-colour-choice";
-
-    var swatch = document.createElement("span");
-    swatch.className = "diagram-inline-colour-swatch";
-    swatch.style.backgroundColor = colour || "#ffffff";
-    swatch.setAttribute("aria-hidden", "true");
-
-    var label = document.createElement("span");
-    label.textContent = name;
-
-    button.appendChild(swatch);
-    button.appendChild(label);
-
-    button.addEventListener("click", function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      dismissInlineColourMenu();
-      action();
-    });
-
-    menu.appendChild(button);
-  }
-
-  function chooseColour(value) {
-    previewInlineColour(nodeId, value, null);
-
-    var field = document.getElementById("diagramInlineText");
-    if (field) field.focus();
-  }
-
-  addChoice("No colour", "", function () {
-    chooseColour("");
-  });
-
-  colorOptions.forEach(function (option) {
-    addChoice(option.label, option.value, function () {
-      chooseColour(option.value);
-    });
-  });
-
-  addChoice("Add a colour…", null, function () {
-    openQuickColourDialogForNode(nodeId);
-  });
-
-  document.body.appendChild(menu);
-
-  // Float near the palette button without moving the boxes.
-  var rect = trigger.getBoundingClientRect();
-  var bounds = menu.getBoundingClientRect();
-
-  var left = Math.min(
-    rect.left,
-    window.innerWidth - bounds.width - 8
-  );
-
-  var top = rect.bottom + 6;
-
-  if (top + bounds.height > window.innerHeight - 8) {
-    top = rect.top - bounds.height - 6;
-  }
-
-  menu.style.left = Math.max(8, left) + "px";
-  menu.style.top = Math.max(8, top) + "px";
-
-  function close() {
-    document.removeEventListener("pointerdown", outside, true);
-    menu.remove();
-
-    if (closeInlineColourMenu === close) {
-      closeInlineColourMenu = null;
-    }
-  }
-
-  function outside(event) {
-    if (!menu.contains(event.target) &&
-        event.target !== trigger) {
-      close();
-    }
-  }
-
-  menu.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      close();
-      trigger.focus();
-    }
-  });
-
-  document.addEventListener("pointerdown", outside, true);
-  closeInlineColourMenu = close;
-
-  var first = menu.querySelector("button");
-  if (first) first.focus();
+  openQuickColourDialogForNode(nodeId);
 }
-
 
 /* B5.5b — 24 standard colours for the visual element picker. */
 var standardDiagramColours = [
@@ -7513,49 +6926,59 @@ var standardDiagramColours = [
 
 
 
-function openQuickColourDialogForNode(nodeId) {
+/* Unified popup for adding, applying and editing named colours. */
+function openQuickColourDialogForNode(nodeId, options) {
+  options = options || {};
   var fromSidebar = nodeId == null;
+  var editOption = options.editValue
+    ? findColorOptionByValue(options.editValue) : null;
+  var editingExisting = !!editOption;
+  var originalValue = editingExisting ? editOption.value : null;
+  var originalLabel = editingExisting ? editOption.label : null;
 
-var targetNode = fromSidebar ? null : nodes.find(function (n) {
-  return n.id === nodeId;
-});
-
-if ((!fromSidebar && !targetNode) ||
-    document.getElementById("quickColourDialog")) return;
+  var targetNode = fromSidebar ? null : nodes.find(function (n) {
+    return n.id === nodeId;
+  });
+  if ((!fromSidebar && !targetNode) ||
+      document.getElementById("quickColourDialog")) return;
 
   var dialog = document.createElement("dialog");
   dialog.id = "quickColourDialog";
   dialog.className = "quick-colour-dialog";
+  dialog.setAttribute("aria-labelledby", "quickColourTitle");
 
   dialog.innerHTML =
-    '<form id="quickColourForm">' +
-      '<h2 id="quickColourTitle">Add a box colour</h2>' +
-      '<p id="quickColourTarget" class="quick-colour-target"></p>' +
-      '<p class="quick-colour-instructions">' +
-        'Select a swatch, give the colour a name if you wish, ' +
-        'then select Save and apply.</p>' +
+    '<form id="quickColourForm" novalidate>' +
+      '<div class="quick-colour-header">' +
+        '<h2 id="quickColourTitle">Add a colour</h2>' +
+        '<button type="button" id="quickColourClose" class="quick-colour-close" ' +
+          'aria-label="Close colour picker">×</button>' +
+      '</div>' +
+      '<p id="quickColourTarget" class="quick-colour-target" hidden></p>' +
+      '<label class="quick-colour-field-label" id="quickColourGridLabel">Choose a colour</label>' +
       '<div id="quickColourGrid" class="quick-colour-grid" ' +
-        'role="group" aria-label="24 standard colours"></div>' +
-      '<label for="quickColourName">Name for this colour (optional)</label>' +
+        'role="group" aria-labelledby="quickColourGridLabel"></div>' +
+      '<div class="quick-colour-selection-row">' +
+        '<details class="quick-colour-custom" id="quickColourCustom">' +
+          '<summary>Custom colour…</summary>' +
+          '<label for="quickColourValue">Choose your own colour</label>' +
+          '<input id="quickColourValue" type="color">' +
+        '</details>' +
+        '<span class="quick-colour-current">' +
+          '<span id="quickColourPreview" class="quick-colour-preview"></span>' +
+          '<span id="quickColourSelected">Select a colour</span>' +
+        '</span>' +
+      '</div>' +
+      '<label for="quickColourName" class="quick-colour-field-label">Colour name</label>' +
       '<input id="quickColourName" type="text" maxlength="80" ' +
-        'placeholder="e.g. Workforce or Patient experience">' +
-      '<p class="quick-colour-name-help">' +
-        'The name appears in Your colours and the key, not inside the box.' +
-      '</p>' +
-      '<p id="quickColourSelected" class="quick-colour-selected" ' +
-        'role="status">Choose a swatch or a custom colour.</p>' +
-      '<details class="quick-colour-custom">' +
-        '<summary>Choose a custom colour instead…</summary>' +
-        '<label for="quickColourValue">Custom colour</label>' +
-        '<input id="quickColourValue" type="color">' +
-      '</details>' +
-      '<p id="quickColourError" class="quick-colour-error" ' +
-        'role="alert"></p>' +
+        'placeholder="e.g. Workforce workstream" autocomplete="off" required>' +
+      '<p id="quickColourError" class="quick-colour-error" role="alert"></p>' +
       '<div class="quick-colour-actions">' +
+        '<button type="button" class="secondary quick-colour-remove" ' +
+          'id="quickColourRemove" hidden>Remove colour</button>' +
         '<button type="button" class="secondary" ' +
           'id="quickColourCancel">Cancel</button>' +
-        '<button type="submit" id="quickColourSave" disabled>' +
-          'Save and apply</button>' +
+        '<button type="submit" id="quickColourSave" disabled>Add colour</button>' +
       '</div>' +
     '</form>';
 
@@ -7564,221 +6987,198 @@ if ((!fromSidebar && !targetNode) ||
   var colourInput = dialog.querySelector("#quickColourValue");
   var errorText = dialog.querySelector("#quickColourError");
   var selectedText = dialog.querySelector("#quickColourSelected");
+  var preview = dialog.querySelector("#quickColourPreview");
   var saveButton = dialog.querySelector("#quickColourSave");
-  var hasSelectedColour = false;
+  var removeButton = dialog.querySelector("#quickColourRemove");
+  var selectedColour = editingExisting ? editOption.value.toLowerCase() : null;
 
-  
-if (fromSidebar) {
-  dialog.querySelector("#quickColourTitle").textContent =
-    "Add to Your colours";
+  if (editingExisting) {
+    dialog.querySelector("#quickColourTitle").textContent = "Edit colour";
+    saveButton.textContent = "Save changes";
+    nameInput.value = editOption.label;
+  } else if (!fromSidebar) {
+    // Show the current box colour (or an unsaved inline preview), if present.
+    var current = targetNode.color || "";
+    if (activeDiagramTextEdit && activeDiagramTextEdit.id === nodeId &&
+        Object.prototype.hasOwnProperty.call(activeDiagramTextEdit, "pendingColour")) {
+      current = activeDiagramTextEdit.pendingColour || "";
+    }
+    selectedColour = current ? current.toLowerCase() : null;
+    var known = findColorOptionByValue(selectedColour);
+    if (known) nameInput.value = known.label;
+    removeButton.hidden = false;
+    var target = dialog.querySelector("#quickColourTarget");
+    target.hidden = false;
+    target.textContent = "Box: " + targetNode.text;
+  }
 
-  dialog.querySelector("#quickColourTarget").textContent =
-    "Choose a colour to make available in your diagram.";
-
-  saveButton.textContent = "Add to Your colours";
-
-  dialog.querySelector(".quick-colour-instructions").textContent =
-    "Choose a standard or custom colour, give it a name if you wish, " +
-    "then select Add to Your colours.";
-} else {
-  dialog.querySelector("#quickColourTarget").textContent =
-    "Selected element: " + targetNode.text;
-}
-
-
-  colourInput.value = defaultNewColorValue;
-
-  function chooseColour(value, preserveName) {
-    var colour = value.toLowerCase();
-    var existing = findColorOptionByValue(colour);
-
-    colourInput.value = colour;
-    hasSelectedColour = true;
-    saveButton.disabled = false;
-    selectedText.textContent = "Selected: " + colour.toUpperCase();
-    errorText.textContent = "";
-
-    if (!preserveName) {
-      nameInput.value = existing ? existing.label : "";
+  function refreshSelection() {
+    var isValid = selectedColour && /^#[0-9a-f]{6}$/.test(selectedColour);
+    if (isValid) {
+      colourInput.value = selectedColour;
+      preview.style.backgroundColor = selectedColour;
+      selectedText.textContent = selectedColour.toUpperCase();
+    } else {
+      preview.style.backgroundColor = "#ffffff";
+      selectedText.textContent = "Select a colour";
     }
 
     grid.querySelectorAll(".quick-colour-tile").forEach(function (tile) {
-      tile.setAttribute(
-        "aria-pressed",
-        tile.dataset.colour.toLowerCase() === colour
-          ? "true"
-          : "false"
-      );
+      tile.setAttribute("aria-pressed",
+        tile.dataset.colour.toLowerCase() === selectedColour ? "true" : "false");
     });
+
+    var name = nameInput.value.trim();
+    var unchanged = editingExisting &&
+      selectedColour === originalValue.toLowerCase() &&
+      name === originalLabel;
+    saveButton.disabled = !isValid || !name || unchanged;
+    errorText.textContent = "";
   }
 
-  // Show just the hex code on each of the 24 swatches.
+  function chooseColour(value, preserveName) {
+    selectedColour = String(value || "").toLowerCase();
+    if (!editingExisting && !preserveName) {
+      var matching = findColorOptionByValue(selectedColour);
+      nameInput.value = matching ? matching.label : "";
+    }
+    refreshSelection();
+  }
+
   standardDiagramColours.forEach(function (preset) {
     var button = document.createElement("button");
     button.type = "button";
     button.className = "quick-colour-tile";
     button.dataset.colour = preset.value;
     button.setAttribute("aria-pressed", "false");
-    button.setAttribute(
-      "aria-label",
-      preset.label + ", " + preset.value
-    );
-    button.title = preset.label + " (" + preset.value + ")";
+    button.setAttribute("aria-label", preset.label + ", " + preset.value);
+    button.title = preset.value + " (" + preset.label + ")";
 
     var swatch = document.createElement("span");
     swatch.className = "quick-colour-tile-swatch";
     swatch.style.backgroundColor = preset.value;
-    swatch.style.color = getContrastingTextColor(preset.value);
-    swatch.textContent = preset.value;
     swatch.setAttribute("aria-hidden", "true");
-
     button.appendChild(swatch);
 
     button.addEventListener("click", function () {
-      // Selecting a swatch does not yet add or apply it.
       chooseColour(preset.value, false);
       nameInput.focus();
     });
-
     grid.appendChild(button);
   });
 
-  // The same name box is used for custom colours.
-  function customColourChanged() {
+  // Browser-native custom colour picker; the name field stays visible.
+  colourInput.value = selectedColour || defaultNewColorValue;
+  colourInput.addEventListener("input", function () {
     chooseColour(colourInput.value, true);
-  }
+  });
+  colourInput.addEventListener("change", function () {
+    chooseColour(colourInput.value, true);
+  });
+  nameInput.addEventListener("input", refreshSelection);
 
-  colourInput.addEventListener("input", customColourChanged);
-  colourInput.addEventListener("change", customColourChanged);
+  function closeDialog() { dialog.close(); }
+  dialog.querySelector("#quickColourCancel").addEventListener("click", closeDialog);
+  dialog.querySelector("#quickColourClose").addEventListener("click", closeDialog);
 
-  dialog.querySelector("#quickColourCancel").addEventListener(
-    "click",
-    function () {
-      dialog.close();
+  removeButton.addEventListener("click", function () {
+    if (fromSidebar) return;
+    if (activeDiagramTextEdit && activeDiagramTextEdit.id === nodeId) {
+      previewInlineColour(nodeId, "", null);
+    } else {
+      var node = nodes.find(function (n) { return n.id === nodeId; });
+      if (node) {
+        node.color = "";
+        updateAllViews();
+      }
     }
-  );
+    closeDialog();
+  });
 
-  dialog.querySelector("#quickColourForm").addEventListener(
-    "submit",
-    function (e) {
-      e.preventDefault();
+  dialog.querySelector("#quickColourForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var colour = (selectedColour || "").toLowerCase();
+    var label = nameInput.value.trim();
+    if (!/^#[0-9a-f]{6}$/.test(colour)) {
+      errorText.textContent = "Choose a colour first.";
+      return;
+    }
+    if (!label) {
+      errorText.textContent = "Enter a name for the colour.";
+      nameInput.focus();
+      return;
+    }
 
-      var colour = colourInput.value.toLowerCase();
-      var label = nameInput.value.trim();
-
-      // Also support custom colours chosen programmatically
-      // by the existing regression tests.
-      if (
-        !hasSelectedColour &&
-        colour !== defaultNewColorValue.toLowerCase()
-      ) {
-        hasSelectedColour = true;
-      }
-
-      if (!hasSelectedColour) {
-        errorText.textContent =
-          "Choose a standard or custom colour first.";
+    var matching = findColorOptionByValue(colour);
+    if (editingExisting) {
+      if (matching && matching !== editOption) {
+        errorText.textContent = 'Already saved as "' + matching.label +
+          '". Choose a different colour.';
         return;
       }
-
-      if (!/^#[0-9a-f]{6}$/.test(colour)) {
-        errorText.textContent = "Choose a valid colour.";
-        return;
-      }
-
-      var existing = findColorOptionByValue(colour);
-
-      if (!label && existing) {
-        label = existing.label;
-      }
-
-      // Give unnamed new colours a neutral name.
-      if (!label) {
-        var number = 1;
-
-        while (colorOptions.some(function (option) {
-          return option.label.toLowerCase() ===
-            ("colour " + number);
-        })) {
-          number++;
+      // A renamed or recoloured key entry updates every box that uses it.
+      editOption.label = label;
+      editOption.value = colour;
+      nodes.forEach(function (node) {
+        if ((node.color || "").toLowerCase() === originalValue.toLowerCase()) {
+          node.color = colour;
         }
-
-        label = "Colour " + number;
+      });
+      if (activeDiagramTextEdit &&
+          (activeDiagramTextEdit.pendingColour || "").toLowerCase() ===
+            originalValue.toLowerCase()) {
+        activeDiagramTextEdit.pendingColour = colour;
       }
-
+      updateAllViews();
+      setColorEditorStatus('Colour "' + label + '" updated.', "success");
+    } else {
       var currentNode = fromSidebar ? null : nodes.find(function (n) {
-  return n.id === nodeId;
-});
-
+        return n.id === nodeId;
+      });
       if (!fromSidebar && !currentNode) {
-        errorText.textContent =
-          "This element is no longer available.";
+        errorText.textContent = "This element is no longer available.";
         return;
       }
 
-      if (
-  !fromSidebar &&
-  activeDiagramTextEdit &&
-  activeDiagramTextEdit.id === nodeId
-) {
-        // Wait for the inline tick before committing the
-        // colour and any name change.
-        previewInlineColour(nodeId, colour, {
-          label: label,
-          value: colour
-        });
+      // An existing hex value reuses its single named key entry.
+      var optionToCommit = matching && matching.label === label
+        ? null : { label: label, value: colour };
 
+      if (!fromSidebar && activeDiagramTextEdit &&
+          activeDiagramTextEdit.id === nodeId) {
+        // Commit the colour and its name only when the box's tick is clicked.
+        previewInlineColour(nodeId, colour, optionToCommit);
       } else {
-        // Reuse a colour with the same hex value rather
-        // than creating a duplicate in Your colours.
-        if (existing) {
-          existing.label = label;
+        if (matching) {
+          matching.label = label;
         } else {
-          colorOptions.push({
-            label: label,
-            value: colour
-          });
+          colorOptions.push({ label: label, value: colour });
         }
-
-
-if (!fromSidebar) {
-  currentNode.color = colour;
-}
-
-updateAllViews();
-
-if (fromSidebar) {
-  setColorEditorStatus(
-    'Colour "' + label + '" is available in Your colours.',
-    "success"
-  );
-}
-
+        if (currentNode) currentNode.color = colour;
+        updateAllViews();
+        setColorEditorStatus('Colour "' + label + '" added.', "success");
       }
-
-      dialog.close();
     }
-  );
+    closeDialog();
+  });
 
   dialog.addEventListener("close", function () {
     dialog.remove();
-
-    if (
-      activeDiagramTextEdit &&
-      activeDiagramTextEdit.id === nodeId
-    ) {
+    if (activeDiagramTextEdit && activeDiagramTextEdit.id === nodeId) {
       var field = document.getElementById("diagramInlineText");
       if (field) field.focus();
     }
   });
 
   document.body.appendChild(dialog);
+  refreshSelection();
   dialog.showModal();
-
-  var firstSwatch = grid.querySelector("button");
-  if (firstSwatch) firstSwatch.focus();
+  if (editingExisting) nameInput.focus();
+  else {
+    var first = grid.querySelector("button");
+    if (first) first.focus();
+  }
 }
-
 
 function ensureNodeContextMenu() {
   if (nodeContextMenuEl) return;
@@ -8698,11 +8098,6 @@ if (window.ResizeObserver) {
   var downloadBtn = document.getElementById("downloadCsvBtn");
   var uploadInput = document.getElementById("uploadCsvInput");
   var btnSavePortable = document.getElementById("btnSavePortable");
-  var addColorBtn =  document.getElementById("addColorBtn");
-  var cancelColorEditBtn =  document.getElementById("cancelColorEditBtn");
-  var colorLabelInput =  document.getElementById("colorLabelInput");
-  var colorValueInput =  document.getElementById("colorValueInput");
-
   var btnToggleControls = document.getElementById("btnToggleControls");
   var btnHeaderClear = document.getElementById("btnHeaderClear");
   var btnExportPng = document.getElementById("btnExportPng");
@@ -8946,43 +8341,6 @@ if (exportArea) {
     });
   }
   
-if (addColorBtn) {
-  addColorBtn.addEventListener(
-    "click",
-    addColorOptionFromForm
-  );
-}
-
-if (cancelColorEditBtn) {
-  cancelColorEditBtn.addEventListener(
-    "click",
-    cancelColorEdit
-  );
-}
-
-if (colorLabelInput) {
-  colorLabelInput.addEventListener(
-    "input",
-    handleColorEditorInput
-  );
-}
-
-if (colorValueInput) {
-  colorValueInput.addEventListener(
-    "input",
-    handleColorEditorInput
-  );
-
-  /*
-    Some browsers report colour-picker changes using
-    the change event rather than input.
-  */
-  colorValueInput.addEventListener(
-    "change",
-    handleColorEditorInput
-  );
-}
-
   if (btnToggleControls) {
     btnToggleControls.addEventListener("click", toggleControlsVisibility);
   }

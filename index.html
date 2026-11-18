@@ -112,86 +112,30 @@
   </div>
 
 
-  <!-- Colour options -->
+  <!-- Colours: one popup shared with the diagram -->
+  <h2 class="collapsible-header" data-target="sectionColourOptions">
+    <span>2. Colours and key</span>
+    <span class="colour-help-wrap">
+      <button type="button" id="colourHelpButton" class="colour-help-button"
+        aria-label="Help with colours" aria-describedby="colourHelpText">?</button>
+      <span id="colourHelpText" class="colour-help-tooltip" role="tooltip">
+        Use named colours to show themes, teams or workstreams.
+        Names appear in the key, not inside diagram boxes.
+      </span>
+    </span>
+    <span class="collapsible-indicator">▾</span>
+  </h2>
 
-<h2 class="collapsible-header" data-target="sectionColourOptions">
-  <span>2. Colours and key</span>
-  <span class="collapsible-indicator">▾</span>
-</h2>
+  <div id="sectionColourOptions" class="collapsible-section is-collapsed">
 
-<div id="sectionColourOptions" class="collapsible-section is-collapsed">
-  <p class="small">
-    Use colours to identify themes, teams, workstreams or priority areas.
-    Add a new colour below, or select <strong>Edit</strong> next to an
-    existing colour.
-  </p>
-
-  <h3 id="colorEditorTitle" class="colour-editor-title">
-    Add a new colour
-  </h3>
-
-
-
-<p class="small">
-  Add a colour from the standard palette, or choose a custom
-  colour instead. Give it a name to explain what it represents.
-  Only colours you add appear in Your colours and the key.
-</p>
-
-  <button type="button"
-        id="btnSidebarColourPalette"
-        class="secondary">
-  Add a colour…
-</button>
-
-<details id="sidebarCustomColourDetails">
-  <summary>Custom colour / edit existing colours…</summary>
-
-<label for="colorLabelInput">Colour name</label>
-
-  <input
-    id="colorLabelInput"
-    type="text"
-    placeholder="e.g. Workforce workstream">
-
-  <label for="colorValueInput">Choose colour</label>
-  <input
-    id="colorValueInput"
-    type="color"
-    value="#fff7cc">
-
-  <div class="buttons colour-form-actions">
-    <button
-      id="addColorBtn"
-      type="button"
-      class="secondary">
-      Add colour
+    <button type="button" id="btnSidebarColourPalette" class="secondary colour-add-button">
+      + Add colour
     </button>
 
-    <button
-      id="cancelColorEditBtn"
-      type="button"
-      class="secondary"
-      hidden>
-      Cancel
-    </button>
+    <h3 class="colour-list-title">Your colours</h3>
+    <ul id="colorOptionsList" class="color-options-list"></ul>
+    <p id="colorEditStatus" class="colour-visually-hidden" role="status" aria-live="polite"></p>
   </div>
-</details>
-
-  <p
-    id="colorEditStatus"
-    class="small colour-edit-status"
-    aria-live="polite">
-  </p>
-
-  <h3 class="colour-list-title">Your colours</h3>
-
-  <ul
-    id="colorOptionsList"
-    class="color-options-list">
-  </ul>
-</div>
-
 
 <!-- Diagram appearance -->
   <h2 class="collapsible-header" data-target="sectionAppearance">

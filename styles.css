@@ -125,120 +125,54 @@
       white-space: nowrap;
     }
 
-/* Improved colour editor */
-.colour-editor-title,
-.colour-list-title {
-  margin: 0.8rem 0 0.5rem;
-  font-size: 0.95rem;
-  font-weight: 600;
+/* Compact sidebar palette/key; editing takes place in the shared popup. */
+.colour-help-wrap { position:relative; display:inline-flex; align-items:center; }
+.colour-help-button {
+  width:21px; height:21px; padding:0; border:1px solid #c5d2df;
+  border-radius:50%; background:#fff; color:#475569;
+  font-size:14px; font-weight:700;
 }
-
-.colour-form-actions {
-  align-items: center;
+.colour-help-tooltip {
+  display:none; position:absolute; right:0; top:calc(100% + 5px);
+  width:235px; padding:10px 12px; z-index:100;
+  background:#263547; color:#fff; border-radius:7px;
+  box-shadow:0 5px 16px rgba(0,0,0,0.2); font-size:12px; line-height:1.4;
 }
-
-.colour-edit-status {
-  min-height: 1.2rem;
-  margin: 0.4rem 0 0;
+.colour-help-wrap:hover .colour-help-tooltip,
+.colour-help-wrap:focus-within .colour-help-tooltip { display:block; }
+.colour-help-button:focus-visible { outline:3px solid #ffbf47; outline-offset:2px; }
+#btnSidebarColourPalette {
+  display:inline-flex; align-items:center; gap:6px;
+  margin:0 0 0.5rem; border:1px solid #ccd8e6;
+  border-radius:6px; font-size:14px;
 }
-
-.colour-edit-status.is-warning {
-  color: #8a5300;
-  font-weight: 600;
-}
-
-.colour-edit-status.is-success {
-  color: #007f3b;
-  font-weight: 600;
-}
-
-.color-options-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.colour-options-empty {
-  padding: 0.5rem;
-  color: #666;
-  font-size: 0.8rem;
-}
-
+.colour-list-title { margin:0.65rem 0 0.5rem; font-size:0.95rem; font-weight:600; }
+.color-options-list { list-style:none; padding:0; margin:0; }
+.colour-options-empty { padding:0.4rem 0.1rem; color:#64748b; font-size:0.82rem; }
 .colour-option-row {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  gap: 0.5rem;
-  align-items: center;
-
-  margin-bottom: 0.35rem;
-  padding: 0.45rem 0.5rem;
-
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  background: #ffffff;
+  display:flex; align-items:center; gap:9px;
+  padding:7px 3px; border-bottom:1px solid #edf0f3;
 }
-
-.colour-option-row.is-editing {
-  border-color: #005eb8;
-  background: #eef5fc;
-  box-shadow: inset 3px 0 0 #005eb8;
-}
-
 .colour-option-swatch {
-  width: 16px;
-  height: 16px;
-  box-sizing: border-box;
-  border: 1px solid #888;
-  border-radius: 3px;
+  flex:none; width:21px; height:21px; box-sizing:border-box;
+  border:1px solid #94a3b8; border-radius:4px;
 }
-
-.colour-option-details {
-  min-width: 0;
-}
-
 .colour-option-name {
-  display: block;
-  overflow-wrap: anywhere;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #222;
+  flex:1; min-width:0; overflow-wrap:anywhere;
+  font-size:13px; color:#222; font-weight:500;
 }
-
-.colour-option-value {
-  display: block;
-  margin-top: 0.1rem;
-  font-size: 0.72rem;
-  color: #666;
-}
-
-.colour-option-actions {
-  display: flex;
-  gap: 0.25rem;
-  align-items: center;
-}
-
+.colour-option-actions { display:inline-flex; align-items:center; gap:5px; }
 button.colour-row-button {
-  padding: 0.25rem 0.45rem;
-  border-radius: 4px;
-  background: #e8edf5;
-  color: #005eb8;
-  font-size: 0.75rem;
-  white-space: nowrap;
+  padding:5px 7px; border-radius:5px;
+  background:#e8edf5; color:#005eb8; font-size:12px;
 }
-
-button.colour-row-button:hover {
-  background: #dbe5f2;
+button.colour-row-button:hover { background:#dce7f4; }
+button.colour-row-button.delete { background:transparent; color:#a61911; font-size:15px; }
+button.colour-row-button.delete:hover { background:#fff1f0; }
+.colour-visually-hidden {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
 }
-
-button.colour-row-button.delete {
-  background: #fff1f0;
-  color: #a61911;
-}
-
-button.colour-row-button.delete:hover {
-  background: #fbd9d6;
-}
-
 
 /* Save/open file controls */
 .file-actions {
@@ -2554,132 +2488,90 @@ dialog.quick-colour-dialog::backdrop {
 }
 
 
-/* B5.5b — Visual 24-colour picker from an element menu. */
-
+/* Shared 24-colour popup — sidebar Add, sidebar Edit and element palette. */
 dialog.quick-colour-dialog {
-  width: min(770px, calc(100vw - 24px));
+  box-sizing:border-box; width:min(420px, calc(100vw - 24px));
+  max-height:min(90vh, 740px); overflow-y:auto;
+  padding:18px; border-radius:13px; border:1px solid #cbd5e1;
+  background:#fff; color:#111827;
 }
-
-.quick-colour-dialog .quick-colour-instructions {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: #475569;
+.quick-colour-header { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.quick-colour-dialog .quick-colour-header h2 { margin:0; font-size:20px; }
+.quick-colour-dialog .quick-colour-close {
+  background:transparent; color:#475569; font-size:25px;
+  padding:0 5px; line-height:1.1;
 }
-
+.quick-colour-dialog .quick-colour-close:hover { background:#eef3f8; }
+.quick-colour-dialog .quick-colour-target {
+  font-size:12px; color:#64748b; margin:6px 0 8px;
+  overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+}
+.quick-colour-dialog .quick-colour-target[hidden],
+.quick-colour-dialog .quick-colour-remove[hidden] { display:none !important; }
+.quick-colour-dialog .quick-colour-field-label {
+  display:block; font-size:13px; font-weight:600; margin:16px 0 7px;
+}
 .quick-colour-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-  margin: 12px 0 16px;
+  display:grid; grid-template-columns:repeat(8,minmax(0,1fr));
+  gap:6px; margin:0 0 12px;
 }
-
 .quick-colour-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding: 4px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: #fff;
-  color: #212b32;
-  font: inherit;
-  text-align: center;
-  cursor: pointer;
+  appearance:none; box-sizing:border-box; min-width:0; aspect-ratio:1;
+  display:grid; place-items:center; padding:3px;
+  border:1px solid #cbd5e1; border-radius:6px;
+  background:#fff; cursor:pointer;
 }
-
-.quick-colour-tile:hover {
-  border-color: #005eb8;
-  background: #eef5fc;
-}
-
+.quick-colour-tile:hover { border-color:#005eb8; }
+.quick-colour-tile[aria-pressed="true"] { border:3px solid #005eb8; padding:1px; }
 .quick-colour-tile-swatch {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 52px;
-  border: 1px solid #cbd5e1;
-  border-radius: 7px;
-  font-size: 11px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
+  display:block; box-sizing:border-box; width:100%; height:100%;
+  min-height:0; border:1px solid rgba(0,0,0,0.10);
+  border-radius:4px; font-size:0;
 }
-
-.quick-colour-custom {
-  margin-top: 12px;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+.quick-colour-tile[aria-pressed="true"] .quick-colour-tile-swatch {
+  outline:2px solid #fff; outline-offset:-4px;
 }
-
+.quick-colour-selection-row {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  margin:4px 0 10px;
+}
+.quick-colour-custom { margin:0; padding:0; border:0; min-width:0; }
 .quick-colour-custom summary {
-  font-weight: 700;
-  cursor: pointer;
+  display:inline-flex; align-items:center; padding:7px 10px;
+  border:1px solid #d0d7de; border-radius:6px;
+  background:#fff; color:#005eb8; font-weight:500; font-size:13px;
+  cursor:pointer; list-style:none;
 }
-
-@media (max-width: 620px) {
-  .quick-colour-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-  }
-
-  dialog.quick-colour-dialog {
-    padding: 12px;
-  }
-
-  .quick-colour-tile-swatch {
-    min-height: 46px;
-    font-size: 10px;
-  }
+.quick-colour-custom summary::-webkit-details-marker { display:none; }
+.quick-colour-custom summary:hover { background:#f1f5f9; }
+.quick-colour-custom[open] summary { margin-bottom:5px; }
+.quick-colour-custom label { display:block; font-size:11px; color:#475569; margin-bottom:3px; }
+.quick-colour-dialog .quick-colour-custom input[type="color"] {
+  display:block; width:110px; height:40px; padding:2px; margin:0;
 }
-
-
-/* B5.5c — Selected swatch and always-visible colour name. */
-
-.quick-colour-tile[aria-pressed="true"] {
-  border-color: #005eb8;
-  box-shadow: inset 0 0 0 2px #005eb8;
+.quick-colour-current {
+  margin-left:auto; display:inline-flex; align-items:center;
+  gap:7px; white-space:nowrap; color:#475569;
+  font:12px ui-monospace, SFMono-Regular, Consolas, monospace;
 }
-
+.quick-colour-preview { width:21px; height:21px; border:1px solid #94a3b8; border-radius:4px; }
 .quick-colour-dialog #quickColourName {
-  box-sizing: border-box;
-  display: block;
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #94a3b8;
-  border-radius: 6px;
-  font: inherit;
+  box-sizing:border-box; display:block; width:100%; margin:0;
+  padding:10px; border:1px solid #94a3b8; border-radius:6px;
+  font:inherit; font-size:14px;
 }
-
-.quick-colour-dialog .quick-colour-name-help {
-  margin: 5px 0 10px;
-  color: #475569;
-  font-size: 12px;
+.quick-colour-dialog .quick-colour-actions { margin-top:16px; gap:8px; }
+.quick-colour-dialog .quick-colour-remove {
+  margin-right:auto; background:transparent; color:#a61911;
+  border:1px solid #e8b1ab; font-size:12px; padding:7px;
 }
-
-.quick-colour-dialog .quick-colour-selected {
-  margin: 10px 0;
-  color: #334155;
-  font-size: 13px;
-}
-
-.quick-colour-dialog #quickColourSave:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-/* B5.5d — Sidebar access to the shared colour palette. */
-
-#btnSidebarColourPalette {
-  display: block;
-  margin: 0.25rem 0 0.75rem;
-}
-
-#sidebarCustomColourDetails {
-  margin: 0.5rem 0 0.75rem;
-}
-
-#sidebarCustomColourDetails > summary {
-  cursor: pointer;
-  font-weight: 600;
+.quick-colour-dialog .quick-colour-remove:hover { background:#fff1f0; }
+.quick-colour-dialog .quick-colour-error { margin:7px 0 0; color:#b91c1c; }
+.quick-colour-dialog .quick-colour-error:empty { display:none; }
+.quick-colour-dialog #quickColourSave:disabled { opacity:.5; cursor:not-allowed; }
+.quick-colour-dialog :focus-visible { outline:3px solid #ffbf47; outline-offset:2px; }
+@media (max-width:380px) {
+  dialog.quick-colour-dialog { padding:12px; }
+  .quick-colour-grid { grid-template-columns:repeat(6,minmax(0,1fr)); gap:5px; }
+  .quick-colour-selection-row { flex-wrap:wrap; }
 }

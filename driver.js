@@ -6590,22 +6590,51 @@ function toggleControlsVisibility() {
 
 
 /* Shared capture options for PNG and PDF exports. */
+
+/* Shared capture options for PNG and PDF exports. */
 function diagramExportCanvasOptions(scale) {
   return {
-    scale: scale || 2,
+    scale: scale || 3,
     useCORS: true,
     logging: false,
     backgroundColor: "#ffffff",
 
     onclone: function (clonedDocument) {
-      // html2canvas can collapse visible spaces in small
-      // measure labels. Correct only the export copy.
+      // Give measure words explicit spacing in the
+      // export copy, without altering the live diagram.
       clonedDocument.querySelectorAll(
         ".diagram-measure-row > span:last-child"
       ).forEach(function (textSpan) {
-        textSpan.textContent = (
-          textSpan.textContent || ""
-        ).replace(/ /g, "\u00A0\u200B");
+
+        var originalText = textSpan.textContent || "";
+        var lines = originalText.split(/\r?\n/);
+
+        textSpan.textContent = "";
+
+        lines.forEach(function (line, lineIndex) {
+          if (lineIndex > 0) {
+            textSpan.appendChild(
+              clonedDocument.createElement("br")
+            );
+          }
+
+          var words = line.trim().split(/\s+/).filter(Boolean);
+
+          words.forEach(function (word, index) {
+            var wordSpan = clonedDocument.createElement("span");
+
+            wordSpan.textContent = word;
+            wordSpan.style.display = "inline-block";
+            wordSpan.style.whiteSpace = "nowrap";
+
+            // Explicit space between words, rather than
+            // relying on html2canvas's text spacing.
+            wordSpan.style.marginRight =
+              index < words.length - 1 ? "0.32em" : "0";
+
+            textSpan.appendChild(wordSpan);
+          });
+        });
       });
     }
   };

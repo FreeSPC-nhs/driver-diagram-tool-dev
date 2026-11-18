@@ -132,13 +132,22 @@
 
 
 
-  <p class="small">
-  Choose a ready-made colour from a diagram element's colour menu.
-  Use this panel to manage or edit colours you have added,
-  or to create your own custom colours.
+<p class="small">
+  Add a colour from the standard palette, or choose a custom
+  colour instead. Give it a name to explain what it represents.
+  Only colours you add appear in Your colours and the key.
 </p>
 
-  <label for="colorLabelInput">Colour name</label>
+  <button type="button"
+        id="btnSidebarColourPalette"
+        class="secondary">
+  Add a colour…
+</button>
+
+<details id="sidebarCustomColourDetails">
+  <summary>Custom colour / edit existing colours…</summary>
+
+<label for="colorLabelInput">Colour name</label>
 
   <input
     id="colorLabelInput"
@@ -167,6 +176,7 @@
       Cancel
     </button>
   </div>
+</details>
 
   <p
     id="colorEditStatus"

@@ -2668,4 +2668,18 @@ dialog.quick-colour-dialog {
   cursor: not-allowed;
 }
 
+/* B5.5d — Sidebar access to the shared colour palette. */
 
+#btnSidebarColourPalette {
+  display: block;
+  margin: 0.25rem 0 0.75rem;
+}
+
+#sidebarCustomColourDetails {
+  margin: 0.5rem 0 0.75rem;
+}
+
+#sidebarCustomColourDetails > summary {
+  cursor: pointer;
+  font-weight: 600;
+}

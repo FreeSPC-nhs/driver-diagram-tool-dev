@@ -970,6 +970,11 @@ function resetColorEditorForm() {
 
   editingColorValue = null;
 
+var customDetails =
+  document.getElementById("sidebarCustomColourDetails");
+
+if (customDetails) customDetails.open = false;
+
 
   if (elements.labelInput) {
     elements.labelInput.value = "";
@@ -1009,6 +1014,11 @@ function beginColorEdit(value) {
 
   editingColorValue = option.value;
 
+var customDetails =
+  document.getElementById("sidebarCustomColourDetails");
+
+if (customDetails) customDetails.open = true;
+
   if (elements.labelInput) {
     elements.labelInput.value = option.label;
   }
@@ -1040,7 +1050,29 @@ function cancelColorEdit() {
   );
 }
 
+
 function initialiseColorEditor() {
+  var paletteButton =
+    document.getElementById("btnSidebarColourPalette");
+
+  if (paletteButton) {
+    paletteButton.addEventListener("click", function () {
+
+      // Protect an unfinished edit in the manual colour editor.
+      if (editingColorValue && isColorEditorDirty() &&
+          !window.confirm(
+            "Discard unsaved colour edits and open the palette?"
+          )) {
+        return;
+      }
+
+      resetColorEditorForm();
+
+      // No node ID means add to Your colours only.
+      openQuickColourDialogForNode(null);
+    });
+  }
+
   resetColorEditorForm();
   renderColorOptionsList();
 }
@@ -7482,11 +7514,14 @@ var standardDiagramColours = [
 
 
 function openQuickColourDialogForNode(nodeId) {
-  var targetNode = nodes.find(function (n) {
-    return n.id === nodeId;
-  });
+  var fromSidebar = nodeId == null;
 
-  if (!targetNode || document.getElementById("quickColourDialog")) return;
+var targetNode = fromSidebar ? null : nodes.find(function (n) {
+  return n.id === nodeId;
+});
+
+if ((!fromSidebar && !targetNode) ||
+    document.getElementById("quickColourDialog")) return;
 
   var dialog = document.createElement("dialog");
   dialog.id = "quickColourDialog";
@@ -7532,8 +7567,24 @@ function openQuickColourDialogForNode(nodeId) {
   var saveButton = dialog.querySelector("#quickColourSave");
   var hasSelectedColour = false;
 
+  
+if (fromSidebar) {
+  dialog.querySelector("#quickColourTitle").textContent =
+    "Add to Your colours";
+
+  dialog.querySelector("#quickColourTarget").textContent =
+    "Choose a colour to make available in your diagram.";
+
+  saveButton.textContent = "Add to Your colours";
+
+  dialog.querySelector(".quick-colour-instructions").textContent =
+    "Choose a standard or custom colour, give it a name if you wish, " +
+    "then select Add to Your colours.";
+} else {
   dialog.querySelector("#quickColourTarget").textContent =
     "Selected element: " + targetNode.text;
+}
+
 
   colourInput.value = defaultNewColorValue;
 
@@ -7655,20 +7706,21 @@ function openQuickColourDialogForNode(nodeId) {
         label = "Colour " + number;
       }
 
-      var currentNode = nodes.find(function (n) {
-        return n.id === nodeId;
-      });
+      var currentNode = fromSidebar ? null : nodes.find(function (n) {
+  return n.id === nodeId;
+});
 
-      if (!currentNode) {
+      if (!fromSidebar && !currentNode) {
         errorText.textContent =
           "This element is no longer available.";
         return;
       }
 
       if (
-        activeDiagramTextEdit &&
-        activeDiagramTextEdit.id === nodeId
-      ) {
+  !fromSidebar &&
+  activeDiagramTextEdit &&
+  activeDiagramTextEdit.id === nodeId
+) {
         // Wait for the inline tick before committing the
         // colour and any name change.
         previewInlineColour(nodeId, colour, {
@@ -7688,8 +7740,20 @@ function openQuickColourDialogForNode(nodeId) {
           });
         }
 
-        currentNode.color = colour;
-        updateAllViews();
+
+if (!fromSidebar) {
+  currentNode.color = colour;
+}
+
+updateAllViews();
+
+if (fromSidebar) {
+  setColorEditorStatus(
+    'Colour "' + label + '" is available in Your colours.',
+    "success"
+  );
+}
+
       }
 
       dialog.close();

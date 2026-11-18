@@ -4526,6 +4526,13 @@ function downloadPortableHtml() {
       var htmlClone =
         document.documentElement.cloneNode(true);
 
+// Keep experimental export controls out of saved diagrams.
+htmlClone.querySelectorAll(
+  'script[data-export-p0], #btnP0VectorPdf, #btnP0ExportSvg'
+).forEach(function (element) {
+  element.remove();
+});
+
 
 // B1.4: Embed the external CSS in saved HTML files.
 // This keeps saved diagrams visually self-contained.

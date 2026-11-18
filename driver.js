@@ -4479,18 +4479,33 @@ function getPortableFilename() {
 /*
   Creates and downloads the portable HTML file.
 */
+
+
+/* Prevent losing unfinished edits during file operations. */
+function blockFileActionDuringEdit(action) {
+  if (!activeOutlineTextEdit && !activeDiagramTextEdit) {
+    return false;
+  }
+
+  var location = activeOutlineTextEdit
+    ? "Outline"
+    : "diagram box";
+
+  alert(
+    "Save or cancel the " + location +
+    " edit before " + action + ".\n\n" +
+    "Your diagram has not been changed."
+  );
+
+  return true;
+}
+
+
+
 function downloadPortableHtml() {
-  if (activeOutlineTextEdit) {
-    alert(
-      "Save or cancel the Outline text edit before saving."
-    );
-    return;
-  }
-  if (activeDiagramTextEdit &&
-      activeDiagramTextEdit.isNew) {
-    alert("Save or cancel the new box before saving your diagram.");
-    return;
-  }
+
+  if (blockFileActionDuringEdit("saving the diagram")) return;
+
 
   if (!nodes.length) {    alert("There is no driver diagram to save.");
     return;
@@ -4747,17 +4762,8 @@ clonedStylesheet.replaceWith(embeddedStyleElement);
 /* ---------- CSV import / export ---------- */
 
 function downloadCsv() {
-  if (activeOutlineTextEdit) {
-    alert(
-      "Save or cancel the Outline text edit before saving."
-    );
-    return;
-  }
-  if (activeDiagramTextEdit &&
-      activeDiagramTextEdit.isNew) {
-    alert("Save or cancel the new box before downloading a CSV backup.");
-    return;
-  }
+
+  if (blockFileActionDuringEdit("downloading a CSV backup")) return;
 
   if (nodes.length === 0) {
     alert("No items to export yet.");
@@ -5210,18 +5216,15 @@ function validateDiagramCsvStructuredFields(rows, errors) {
   });
 }
 
-function uploadCsv(file, onFinished) {
-    if (activeOutlineTextEdit) {
-    alert(
-      "Save or cancel the Outline text edit before opening another CSV."
-    );
 
+function uploadCsv(file, onFinished) {
+  if (blockFileActionDuringEdit("opening a CSV file")) {
     if (typeof onFinished === "function") {
       onFinished(false);
     }
-
     return;
   }
+
 
 
 
@@ -6724,6 +6727,9 @@ function withSvgImageOverlay(runCapture) {
 
 
 function exportDiagramPng() {
+
+  if (blockFileActionDuringEdit("downloading an image")) return;
+
   var exportArea = document.getElementById("exportArea");
   if (!exportArea) {
     alert("Could not find diagram to export.");
@@ -6766,6 +6772,9 @@ function exportDiagramPng() {
 
 
 function exportDiagramPdf() {
+
+  if (blockFileActionDuringEdit("downloading a PDF")) return;
+
   var exportArea = document.getElementById("exportArea");
   if (!exportArea) {
     alert("Could not find diagram to export.");

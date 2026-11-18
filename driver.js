@@ -4061,8 +4061,14 @@ function saveDiagramInlineText() {
       // Commit a newly named colour to the shared palette.
       var option = activeDiagramTextEdit.pendingColourOption;
 
-      if (option && !findColorOptionByValue(option.value)) {
-        colorOptions.push(option);
+      if (option) {
+        var existingOption = findColorOptionByValue(option.value);
+
+        if (existingOption) {
+          existingOption.label = option.label;
+        } else {
+          colorOptions.push(option);
+        }
       }
     }
   }
@@ -6395,7 +6401,7 @@ function buildOutlineActionControls(node) {
     option("Current colour (" + node.color + ")", node.color);
   }
 
-  option("+ Add from standard palette…", "__outline_new_colour__");
+  option("Add a colour…", "__outline_new_colour__");
   colourSelect.value = node.color || "";
 
   colourSelect.addEventListener("change", function (event) {
@@ -7383,7 +7389,7 @@ function showInlineColourMenu(nodeId, trigger) {
     });
   });
 
-  addChoice("+ Add from standard palette…", null, function () {
+  addChoice("Add a colour…", null, function () {
     openQuickColourDialogForNode(nodeId);
   });
 
@@ -7474,196 +7480,235 @@ var standardDiagramColours = [
 
 
 
-function openQuickColourDialogForNode(nodeId) {
 
-  var targetNode = nodes.find(function (n) { return n.id === nodeId; });
+function openQuickColourDialogForNode(nodeId) {
+  var targetNode = nodes.find(function (n) {
+    return n.id === nodeId;
+  });
+
   if (!targetNode || document.getElementById("quickColourDialog")) return;
 
   var dialog = document.createElement("dialog");
   dialog.id = "quickColourDialog";
   dialog.className = "quick-colour-dialog";
-  
+
   dialog.innerHTML =
     '<form id="quickColourForm">' +
-      '<h2>Add a box colour</h2>' +
+      '<h2 id="quickColourTitle">Add a box colour</h2>' +
       '<p id="quickColourTarget" class="quick-colour-target"></p>' +
       '<p class="quick-colour-instructions">' +
-        'Click a swatch to add it to Your colours and apply it. ' +
-        'If you are editing text, save with the tick to confirm.' +
-      '</p>' +
+        'Select a swatch, give the colour a name if you wish, ' +
+        'then select Save and apply.</p>' +
       '<div id="quickColourGrid" class="quick-colour-grid" ' +
         'role="group" aria-label="24 standard colours"></div>' +
+      '<label for="quickColourName">Name for this colour (optional)</label>' +
+      '<input id="quickColourName" type="text" maxlength="80" ' +
+        'placeholder="e.g. Workforce or Patient experience">' +
+      '<p class="quick-colour-name-help">' +
+        'The name appears in Your colours and the key, not inside the box.' +
+      '</p>' +
+      '<p id="quickColourSelected" class="quick-colour-selected" ' +
+        'role="status">Choose a swatch or a custom colour.</p>' +
       '<details class="quick-colour-custom">' +
-        '<summary>Custom colour…</summary>' +
-        '<label for="quickColourName">Colour name (optional)</label>' +
-        '<input id="quickColourName" type="text" maxlength="80" ' +
-          'placeholder="e.g. Workforce improvement">' +
-        '<label for="quickColourValue">Choose colour</label>' +
+        '<summary>Choose a custom colour instead…</summary>' +
+        '<label for="quickColourValue">Custom colour</label>' +
         '<input id="quickColourValue" type="color">' +
-        '<p id="quickColourError" class="quick-colour-error" ' +
-          'role="alert"></p>' +
-        '<div class="quick-colour-actions">' +
-          '<button type="submit">Save and apply custom colour</button>' +
-        '</div>' +
       '</details>' +
+      '<p id="quickColourError" class="quick-colour-error" ' +
+        'role="alert"></p>' +
       '<div class="quick-colour-actions">' +
         '<button type="button" class="secondary" ' +
           'id="quickColourCancel">Cancel</button>' +
+        '<button type="submit" id="quickColourSave" disabled>' +
+          'Save and apply</button>' +
       '</div>' +
     '</form>';
 
-
-
+  var grid = dialog.querySelector("#quickColourGrid");
   var nameInput = dialog.querySelector("#quickColourName");
   var colourInput = dialog.querySelector("#quickColourValue");
   var errorText = dialog.querySelector("#quickColourError");
+  var selectedText = dialog.querySelector("#quickColourSelected");
+  var saveButton = dialog.querySelector("#quickColourSave");
+  var hasSelectedColour = false;
+
   dialog.querySelector("#quickColourTarget").textContent =
     "Selected element: " + targetNode.text;
-  
+
   colourInput.value = defaultNewColorValue;
 
-  // Build the visual 24-colour palette.
-  // Colours are only added to Your colours when chosen.
-  var grid = dialog.querySelector("#quickColourGrid");
+  function chooseColour(value, preserveName) {
+    var colour = value.toLowerCase();
+    var existing = findColorOptionByValue(colour);
 
+    colourInput.value = colour;
+    hasSelectedColour = true;
+    saveButton.disabled = false;
+    selectedText.textContent = "Selected: " + colour.toUpperCase();
+    errorText.textContent = "";
+
+    if (!preserveName) {
+      nameInput.value = existing ? existing.label : "";
+    }
+
+    grid.querySelectorAll(".quick-colour-tile").forEach(function (tile) {
+      tile.setAttribute(
+        "aria-pressed",
+        tile.dataset.colour.toLowerCase() === colour
+          ? "true"
+          : "false"
+      );
+    });
+  }
+
+  // Show just the hex code on each of the 24 swatches.
   standardDiagramColours.forEach(function (preset) {
     var button = document.createElement("button");
     button.type = "button";
     button.className = "quick-colour-tile";
-    button.title =
-      "Add and apply " + preset.label + " (" + preset.value + ")";
-    button.setAttribute("aria-label", button.title);
+    button.dataset.colour = preset.value;
+    button.setAttribute("aria-pressed", "false");
+    button.setAttribute(
+      "aria-label",
+      preset.label + ", " + preset.value
+    );
+    button.title = preset.label + " (" + preset.value + ")";
 
     var swatch = document.createElement("span");
     swatch.className = "quick-colour-tile-swatch";
     swatch.style.backgroundColor = preset.value;
-    swatch.style.color =
-      getContrastingTextColor(preset.value);
+    swatch.style.color = getContrastingTextColor(preset.value);
     swatch.textContent = preset.value;
     swatch.setAttribute("aria-hidden", "true");
 
-    var name = document.createElement("span");
-    name.className = "quick-colour-tile-name";
-    name.textContent = preset.label;
-    name.setAttribute("aria-hidden", "true");
-
     button.appendChild(swatch);
-    button.appendChild(name);
 
     button.addEventListener("click", function () {
-      var current = nodes.find(function (n) {
-        return n.id === nodeId;
-      });
-
-      if (!current) return;
-
-      var value = preset.value.toLowerCase();
-      var alreadyAdded = findColorOptionByValue(value);
-
-      var newOption = alreadyAdded ? null : {
-        label: preset.label,
-        value: value
-      };
-
-      if (activeDiagramTextEdit &&
-          activeDiagramTextEdit.id === nodeId) {
-
-        // Do not commit a new colour until the edit is saved.
-        previewInlineColour(nodeId, value, newOption);
-
-      } else {
-        // Add once, then apply to the chosen element.
-        if (newOption) colorOptions.push(newOption);
-
-        current.color = value;
-        updateAllViews();
-      }
-
-      dialog.close();
+      // Selecting a swatch does not yet add or apply it.
+      chooseColour(preset.value, false);
+      nameInput.focus();
     });
 
     grid.appendChild(button);
   });
 
+  // The same name box is used for custom colours.
+  function customColourChanged() {
+    chooseColour(colourInput.value, true);
+  }
 
+  colourInput.addEventListener("input", customColourChanged);
+  colourInput.addEventListener("change", customColourChanged);
 
-  dialog.querySelector("#quickColourCancel").addEventListener("click", function () {
-    dialog.close();
-  });
-
-  dialog.querySelector("#quickColourForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-
-    var colour = colourInput.value.toLowerCase();
-    var label = nameInput.value.trim();
-
-    if (!/^#[0-9a-f]{6}$/.test(colour)) {
-      errorText.textContent = "Choose a valid colour.";
-      colourInput.focus();
-      return;
+  dialog.querySelector("#quickColourCancel").addEventListener(
+    "click",
+    function () {
+      dialog.close();
     }
+  );
 
-    var existing = findColorOptionByValue(colour);
-    if (existing) {
-      errorText.textContent = 'That colour already exists as "' +
-        existing.label + '". Cancel and select it from the menu.';
-      colourInput.focus();
-      return;
-    }
+  dialog.querySelector("#quickColourForm").addEventListener(
+    "submit",
+    function (e) {
+      e.preventDefault();
 
-    // Generate a unique default name when the name is blank.
-    if (!label) {
-      var number = 1;
-      while (colorOptions.some(function (option) {
-        return option.label.toLowerCase() === ("colour " + number);
-      })) number++;
-      label = "Colour " + number;
-    }
+      var colour = colourInput.value.toLowerCase();
+      var label = nameInput.value.trim();
 
-    var currentNode = nodes.find(function (n) { return n.id === nodeId; });
-    if (!currentNode) {
-      errorText.textContent = "This element is no longer available.";
-      return;
-    }
+      // Also support custom colours chosen programmatically
+      // by the existing regression tests.
+      if (
+        !hasSelectedColour &&
+        colour !== defaultNewColorValue.toLowerCase()
+      ) {
+        hasSelectedColour = true;
+      }
 
+      if (!hasSelectedColour) {
+        errorText.textContent =
+          "Choose a standard or custom colour first.";
+        return;
+      }
 
-    if (activeDiagramTextEdit &&
-        activeDiagramTextEdit.id === nodeId) {
+      if (!/^#[0-9a-f]{6}$/.test(colour)) {
+        errorText.textContent = "Choose a valid colour.";
+        return;
+      }
 
-      // Stage this named colour until the inline tick is clicked.
-      previewInlineColour(nodeId, colour, {
-        label: label,
-        value: colour
+      var existing = findColorOptionByValue(colour);
+
+      if (!label && existing) {
+        label = existing.label;
+      }
+
+      // Give unnamed new colours a neutral name.
+      if (!label) {
+        var number = 1;
+
+        while (colorOptions.some(function (option) {
+          return option.label.toLowerCase() ===
+            ("colour " + number);
+        })) {
+          number++;
+        }
+
+        label = "Colour " + number;
+      }
+
+      var currentNode = nodes.find(function (n) {
+        return n.id === nodeId;
       });
 
+      if (!currentNode) {
+        errorText.textContent =
+          "This element is no longer available.";
+        return;
+      }
+
+      if (
+        activeDiagramTextEdit &&
+        activeDiagramTextEdit.id === nodeId
+      ) {
+        // Wait for the inline tick before committing the
+        // colour and any name change.
+        previewInlineColour(nodeId, colour, {
+          label: label,
+          value: colour
+        });
+
+      } else {
+        // Reuse a colour with the same hex value rather
+        // than creating a duplicate in Your colours.
+        if (existing) {
+          existing.label = label;
+        } else {
+          colorOptions.push({
+            label: label,
+            value: colour
+          });
+        }
+
+        currentNode.color = colour;
+        updateAllViews();
+      }
+
       dialog.close();
-      return;
     }
-
-    // Existing right-click behaviour remains unchanged.
-    colorOptions.push({ label: label, value: colour });
-    currentNode.color = colour;
-    updateAllViews();
-    dialog.close();
-  });
-
+  );
 
   dialog.addEventListener("close", function () {
     dialog.remove();
 
-    // Return to the text editor if it is still active.
-    if (activeDiagramTextEdit &&
-        activeDiagramTextEdit.id === nodeId) {
-
-      var textField = document.getElementById(
-        "diagramInlineText"
-      );
-
-      if (textField) textField.focus();
+    if (
+      activeDiagramTextEdit &&
+      activeDiagramTextEdit.id === nodeId
+    ) {
+      var field = document.getElementById("diagramInlineText");
+      if (field) field.focus();
     }
   });
 
-    document.body.appendChild(dialog);
+  document.body.appendChild(dialog);
   dialog.showModal();
 
   var firstSwatch = grid.querySelector("button");
@@ -8011,7 +8056,7 @@ function addColorSubmenu(label) {
       separator.className = "quick-colour-menu-divider";
       sub.appendChild(separator);
 
-      addSubItem("＋ Add from standard palette…", function () {
+      addSubItem("Add a colour…", function () {
         var targetId = n.id;
         closeNodeContextMenu();
         openQuickColourDialogForNode(targetId);

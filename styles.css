@@ -2605,12 +2605,6 @@ dialog.quick-colour-dialog {
   overflow-wrap: anywhere;
 }
 
-.quick-colour-tile-name {
-  min-height: 2.5em;
-  font-size: 11px;
-  line-height: 1.2;
-}
-
 .quick-colour-custom {
   margin-top: 12px;
   padding: 10px;
@@ -2637,6 +2631,41 @@ dialog.quick-colour-dialog {
     min-height: 46px;
     font-size: 10px;
   }
+}
+
+
+/* B5.5c — Selected swatch and always-visible colour name. */
+
+.quick-colour-tile[aria-pressed="true"] {
+  border-color: #005eb8;
+  box-shadow: inset 0 0 0 2px #005eb8;
+}
+
+.quick-colour-dialog #quickColourName {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.quick-colour-dialog .quick-colour-name-help {
+  margin: 5px 0 10px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.quick-colour-dialog .quick-colour-selected {
+  margin: 10px 0;
+  color: #334155;
+  font-size: 13px;
+}
+
+.quick-colour-dialog #quickColourSave:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 

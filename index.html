@@ -9,7 +9,7 @@
 
 
   <!-- PapaParse for CSV import/export -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.5.2/papaparse.min.js"></script>
+  <script src="./papaparse.min.js"></script>
   <!-- Export code is part of driver.js; no screenshot or PDF library required. -->
 </head>
 <body>
@@ -98,11 +98,14 @@
       <section class="card" id="controlsPanel">
  
   <!-- Import / export -->
-  <h2 class="collapsible-header" data-target="sectionImportExport">
+  <h2 class="collapsible-heading">
+  <button type="button" class="collapsible-header"
+          data-target="sectionImportExport" aria-controls="sectionImportExport"
+          aria-expanded="true">
     <span>1. Save or open a diagram</span>
-    <span class="collapsible-indicator">▾</span>
-
-  </h2>
+    <span class="collapsible-indicator" aria-hidden="true">▾</span>
+  </button>
+</h2>
   <div id="sectionImportExport" class="collapsible-section">
     <p>
       Save an editable copy of your diagram, or reopen a file that you saved earlier.
@@ -139,7 +142,8 @@
 <p class="file-help">
   <strong>Save diagram</strong> creates an HTML file that you can open directly
   from a folder. CSV files are useful as backups and can be reopened using
-  <strong>Open saved file</strong>.
+  <strong>Open saved file</strong>. CSV backups use reversible spreadsheet-safety
+  escaping so that imported diagram text is preserved.
 </p>
 
     <hr style="margin: 1rem 0; border: none; border-top: 1px solid #eee;" />
@@ -148,69 +152,29 @@
 
   <!-- Colour options -->
 
-<h2 class="collapsible-header" data-target="sectionColourOptions">
-  <span>2. Colours and key</span>
-  <span class="collapsible-indicator">▾</span>
+<h2 class="collapsible-heading">
+  <button type="button" class="collapsible-header"
+          data-target="sectionColourOptions" aria-controls="sectionColourOptions"
+          aria-expanded="false">
+    <span>2. Colours and key</span>
+    <span class="collapsible-indicator" aria-hidden="true">▸</span>
+  </button>
 </h2>
 
 <div id="sectionColourOptions" class="collapsible-section is-collapsed">
-  <p class="small">
-    Use colours to identify themes, teams, workstreams or priority areas.
-    Add a new colour below, or select <strong>Edit</strong> next to an
-    existing colour.
-  </p>
-
-  <h3 id="colorEditorTitle" class="colour-editor-title">
-    Add a new colour
-  </h3>
-
-
-
-<p class="small">
-  Add a colour from the standard palette, or choose a custom
-  colour instead. Give it a name to explain what it represents.
-  Only colours you add appear in Your colours and the key.
-</p>
-
-  <button type="button"
-        id="btnSidebarColourPalette"
-        class="secondary">
-  Add a colour…
-</button>
-
-<details id="sidebarCustomColourDetails">
-  <summary>Custom colour / edit existing colours…</summary>
-
-<label for="colorLabelInput">Colour name</label>
-
-  <input
-    id="colorLabelInput"
-    type="text"
-    placeholder="e.g. Workforce workstream">
-
-  <label for="colorValueInput">Choose colour</label>
-  <input
-    id="colorValueInput"
-    type="color"
-    value="#fff7cc">
-
-  <div class="buttons colour-form-actions">
-    <button
-      id="addColorBtn"
-      type="button"
-      class="secondary">
-      Add colour
+  <div class="colour-add-row">
+    <button type="button" id="btnSidebarColourPalette" class="secondary">
+      Add a colour…
     </button>
-
-    <button
-      id="cancelColorEditBtn"
-      type="button"
-      class="secondary"
-      hidden>
-      Cancel
-    </button>
+    <span class="colour-help-wrap">
+      <button type="button" id="colourHelpButton" class="colour-help-button"
+              aria-label="Help with colours and key" aria-describedby="colourHelpTip">?</button>
+      <span id="colourHelpTip" class="colour-help-tooltip" role="tooltip">
+        Name colours to identify themes or workstreams. Saved colours appear in the key.
+        Use Edit beside a colour to change it.
+      </span>
+    </span>
   </div>
-</details>
 
   <p
     id="colorEditStatus"
@@ -228,10 +192,14 @@
 
 
 <!-- Diagram appearance -->
-  <h2 class="collapsible-header" data-target="sectionAppearance">
+  <h2 class="collapsible-heading">
+  <button type="button" class="collapsible-header"
+          data-target="sectionAppearance" aria-controls="sectionAppearance"
+          aria-expanded="false">
     <span>3. Diagram appearance</span>
-    <span class="collapsible-indicator">▾</span>
-  </h2>
+    <span class="collapsible-indicator" aria-hidden="true">▸</span>
+  </button>
+</h2>
   <div id="sectionAppearance" class="collapsible-section is-collapsed">
     <p class="small">
       Adjust the size, spacing and text styling of the boxes in the diagram. These

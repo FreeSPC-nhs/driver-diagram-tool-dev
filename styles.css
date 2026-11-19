@@ -2787,3 +2787,44 @@ main.sidebar-collapsed {
     margin-bottom: 0;
   }
 }
+
+/* v1.0 release: accessible sidebar section buttons and compact colour help. */
+#controlsPanel h2.collapsible-heading {
+  margin: 0 0 0.25rem;
+}
+#controlsPanel button.collapsible-header {
+  width: 100%;
+  min-height: 32px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #111;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+#controlsPanel button.collapsible-header:hover {
+  background: #f1f5f9;
+}
+#controlsPanel button.collapsible-header:focus-visible {
+  outline: 3px solid #ffbf47;
+  outline-offset: 2px;
+}
+#controlsPanel button.collapsible-header .collapsible-indicator {
+  flex: none;
+}
+.colour-add-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0.25rem 0 0.65rem;
+}
+.colour-add-row #btnSidebarColourPalette { margin: 0; }

@@ -3065,32 +3065,28 @@ function insertAfterLastSibling(nodes, newNode) {
 
 function setupCollapsibleSections() {
   var panel = document.getElementById("controlsPanel");
-  if (!panel) return;
-
-  // prevent double-binding if called more than once
-  if (panel._collapsibleBound) return;
+  if (!panel || panel._collapsibleBound) return;
   panel._collapsibleBound = true;
 
-  panel.addEventListener("click", function (e) {
-    var el = e.target;
+  // Native buttons support Enter, Space and screen readers.
+  panel.querySelectorAll("button.collapsible-header[data-target]")
+    .forEach(function (button) {
+      var section = document.getElementById(button.dataset.target);
+      if (!section) return;
 
-    // Walk up the DOM until we hit a collapsible header or the panel
-    while (el && el !== panel) {
-      if (el.classList && el.classList.contains("collapsible-header")) break;
-      el = el.parentNode;
-    }
-    if (!el || el === panel) return;
+      function syncState() {
+        var collapsed = section.classList.contains("is-collapsed");
+        button.setAttribute("aria-expanded", String(!collapsed));
+        var indicator = button.querySelector(".collapsible-indicator");
+        if (indicator) indicator.textContent = collapsed ? "▸" : "▾";
+      }
 
-    var targetId = el.getAttribute("data-target");
-    if (!targetId) return;
-
-    var section = document.getElementById(targetId);
-    if (!section) return;
-
-    var indicator = el.querySelector(".collapsible-indicator");
-    var collapsed = section.classList.toggle("is-collapsed");
-    if (indicator) indicator.textContent = collapsed ? "▸" : "▾";
-  });
+      syncState();
+      button.addEventListener("click", function () {
+        section.classList.toggle("is-collapsed");
+        syncState();
+      });
+    });
 }
 
 function applyDiagramAppearanceFromInputs() {
@@ -4501,6 +4497,44 @@ function blockFileActionDuringEdit(action) {
 }
 
 
+/* Get PapaParse for inclusion in saved HTML diagrams. */
+function getPapaSourceForPortableExport() {
+  // When reopening an already-saved diagram, reuse
+  // its embedded copy of PapaParse.
+  var embedded = document.getElementById("portablePapaSource");
+
+  if (embedded && (embedded.textContent || "").trim()) {
+    return Promise.resolve(embedded.textContent);
+  }
+
+  // Otherwise, find the repository-hosted library.
+  var parserScript = Array.from(
+    document.querySelectorAll("script[src]")
+  ).find(function (script) {
+    return /(^|\/)papaparse\.min\.js([?#]|$)/i.test(
+      script.getAttribute("src") || ""
+    );
+  });
+
+  if (!parserScript) {
+    return Promise.reject(
+      new Error("Could not find papaparse.min.js.")
+    );
+  }
+
+  return fetch(parserScript.src, { cache: "no-store" })
+    .then(function (response) {
+      if (!response.ok) {
+        throw new Error(
+          "Could not load PapaParse: HTTP " + response.status
+        );
+      }
+      return response.text();
+    });
+}
+
+
+
 
 function downloadPortableHtml() {
 
@@ -4514,8 +4548,14 @@ function downloadPortableHtml() {
   var projectData = getPortableProjectData();
   var projectJson = makeJsonSafeForHtml(projectData);
 
-  getDriverSourceForPortableExport()
-    .then(function (driverSource) {
+
+  Promise.all([
+    getDriverSourceForPortableExport(),
+    getPapaSourceForPortableExport()
+  ]).then(function (sources) {
+    var driverSource = sources[0];
+    var papaSource = sources[1];
+
       /*
         Clone the current page.
 
@@ -4524,6 +4564,38 @@ function downloadPortableHtml() {
       */
       var htmlClone =
         document.documentElement.cloneNode(true);
+
+
+      // Embed PapaParse directly in the saved HTML.
+      var papaReference = Array.from(
+        htmlClone.querySelectorAll("script")
+      ).find(function (script) {
+        return script.id === "portablePapaSource" ||
+          /(^|\/)papaparse\.min\.js([?#]|$)/i.test(
+            script.getAttribute("src") || ""
+          );
+      });
+
+      if (!papaReference) {
+        throw new Error(
+          "Could not find the PapaParse script in the page."
+        );
+      }
+
+      var portablePapaScript =
+        document.createElement("script");
+
+      portablePapaScript.id = "portablePapaSource";
+
+      portablePapaScript.textContent =
+        papaSource.replace(
+          /<\/script/gi,
+          "<\\/script"
+        );
+
+      papaReference.replaceWith(portablePapaScript);
+
+
 
       // Restore default panel/menu states in portable saves.
       // An icon-only collapsed panel must never become impossible to reopen.
@@ -4836,14 +4908,31 @@ connection_style: normaliseConnectionStyle(
               style: normaliseConnectionOverride(c.style)
             };
           })
-        )
+        ),
+        // Explicit marker ensures safe spreadsheet escaping can be
+        // reversed when this app reopens the CSV backup.
+        csv_safety_version: "apostrophe-v1"
 
 
     };
   });
 
 
-  var csv = Papa.unparse(dataForCsv);
+  // Prefix potentially executable spreadsheet cells. Only CSV output
+  // is escaped; source diagram content remains unchanged.
+  var spreadsheetSafeRows = dataForCsv.map(function (row) {
+    var safe = {};
+    Object.keys(row).forEach(function (key) {
+      var value = row[key];
+      safe[key] = typeof value === "string" &&
+        (value.charAt(0) === "'" ||
+         /^[\s\u0000-\u001f]*[=+\-@]/.test(value))
+        ? "'" + value
+        : value;
+    });
+    return safe;
+  });
+  var csv = Papa.unparse(spreadsheetSafeRows, { quotes: true });
   var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   var url = URL.createObjectURL(blob);
 
@@ -5252,6 +5341,20 @@ function uploadCsv(file, onFinished) {
     header: true,
     skipEmptyLines: true,
     complete: function (results) {
+      // Restore exact original values in CSV backups created by this
+      // version. Never strip apostrophes from older or external CSVs.
+      (results.data || []).forEach(function (row) {
+        if (!row || row.csv_safety_version !== "apostrophe-v1") return;
+        Object.keys(row).forEach(function (key) {
+          var value = row[key];
+          if (typeof value === "string" &&
+              (value.slice(0, 2) === "''" ||
+               (value.charAt(0) === "'" &&
+                /^[\s\u0000-\u001f]*[=+\-@]/.test(value.slice(1))))) {
+            row[key] = value.slice(1);
+          }
+        });
+      });
 
       // B4.1d.1: Reject invalid files before changing data.
       var errors = validateDiagramCsvBeforeImport(results);

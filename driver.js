@@ -9178,7 +9178,7 @@ initialiseDiagramHistory();
   }
 })();
 
-/* DRIVER DIAGRAM TOOL — AI GUIDANCE THREE-TAB UPGRADE v1.2
+/* DRIVER DIAGRAM TOOL — AI GUIDANCE THREE-TAB UPGRADE v1.3
  * Appendix for the existing driver.js. No AI API, new library or backend.
  * Retains the original prompt builder and CSV importer and their event handlers.
  * Designed to reinitialise correctly in standalone saved HTML copies.
@@ -9186,7 +9186,7 @@ initialiseDiagramHistory();
 (function () {
   "use strict";
 
-  var UPGRADE_VERSION = "1.2";
+  var UPGRADE_VERSION = "1.3";
   var originalPromptBuilder = createAiDriverDiagramPrompt;
 
   function el(tag, className, textValue) {
@@ -9198,24 +9198,24 @@ initialiseDiagramHistory();
 
   function preferencesLine(options) {
     var wording = {
-      preserve: "Keep the user's terminology; offer potential revisions separately.",
+      preserve: "Preserve the wording of existing source-derived diagram items wherever possible. This does NOT prevent adding new, clearly identified suggestions. Use suitable new wording for additional measures and change ideas.",
       clarify: "Suggest clearer wording without changing meaning, identifying significant revisions.",
       alternatives: "Offer alternative wording for discussion; do not claim it has been agreed."
     };
     var measures = {
       none: "Do not invent or add measures to CSV.",
       existing: "Include only measures supplied by the user and confirmed for inclusion.",
-      few: "When appropriate, offer a few potential measures for discussion; include only those confirmed."
+      few: "Propose a small number of relevant outcome, process and, where appropriate, balancing measures. Include them in the provisional draft and in CSV if I request it, unless I exclude them. Label them as AI suggestions during review; do not imply they are agreed or already collected."
     };
     var changes = {
       existing: "Use only change ideas already offered by the user.",
       none: "Do not add change ideas at this stage.",
-      suggest: "When invited or when appropriate later in the discussion, offer a few clearly labelled possible change ideas for discussion."
+      suggest: "My selection of this setting IS a request to propose additional change ideas. Include a small number of relevant new change ideas in the provisional draft and CSV if I request it, unless I exclude them. Distinguish AI suggestions from source ideas during review; do not imply they are agreed or proven."
     };
     var colours = {
       app: "Leave colours blank so the diagram tool handles them.",
-      branch: "If the user agrees, use accessible six-digit hex colours by primary-driver branch.",
-      level: "If the user agrees, use accessible six-digit hex colours by diagram level.",
+      branch: "Apply accessible six-digit hex colours by primary-driver branch as selected in the tool.",
+      level: "Apply accessible six-digit hex colours by diagram level as selected in the tool.",
       custom: "Before formatting CSV colours, ask for the desired six-digit hex codes; otherwise leave colours blank."
     };
     return [
@@ -9224,6 +9224,46 @@ initialiseDiagramHistory();
       "Change ideas: " + (changes[options.changes] || changes.existing),
       "Colours: " + (colours[options.colours] || colours.app)
     ].join("\n");
+  }
+
+  // Explicit priorities prevent "preserve wording" from suppressing requested additions.
+  function contentPreferenceRules(options) {
+    var wantMeasures = options.measures === "few";
+    var wantChanges = options.changes === "suggest";
+    var rules = [
+      "HOW THESE PREFERENCES WORK TOGETHER — PRIORITY RULES",
+      "1. Treat my wording, measure and change-idea selections as INDEPENDENT instructions. Preserving language applies to source-derived text, NOT to whether you may add requested new content.",
+      "2. Preserve the original wording/meaning of source-derived items, but write NEW suggestions in suitable, clear language. Do not silently rewrite existing items merely to make room for new suggestions.",
+      "3. Clearly distinguish source-derived items from your own proposed additions in the readable draft and review discussion (for example, a short 'New AI suggestions' subsection). Do not misrepresent suggestions as team-agreed decisions or established evidence.",
+      "4. Generate a useful provisional draft with the selected additions rather than making the user separately approve each one before it can appear. Invite me to accept, remove or amend them during review.",
+      "5. When I request CSV, export the CURRENT provisional draft, INCLUDING the selected suggestions unless I have rejected them. My CSV request does not mean the team has formally approved them; the imported diagram remains provisional.",
+      "6. Do not invent local observations, baselines, targets or clinical effectiveness. If essential context is absent, offer a generic but clearly provisional candidate and identify its uncertainty, or explain briefly why no responsible suggestion is possible.",
+      "7. Before sending CSV, check the chosen options against the output: requested change ideas must be present as change-level rows; requested measures must be present in measures_json on the appropriate aim/driver rows; include the required seven-column CSV when measures are present. Never substitute prose suggestions for the requested CSV content."
+    ];
+    if (wantChanges) rules.push("REQUESTED CHANGE IDEAS: propose about 2–4 specific, relevant and testable candidate interventions across appropriate secondary drivers when the context supports them; avoid repeating existing ideas. Include them in the provisional hierarchy.");
+    if (wantMeasures) rules.push("REQUESTED MEASURES: propose about 2–4 meaningful candidate measures across the aim and relevant drivers (an outcome measure and useful process measures; consider a balancing measure where relevant). State what each would indicate and attach it to the right node. Include them in provisional CSV as measures_json when CSV is requested.");
+    if (!wantChanges) rules.push("CHANGE IDEAS: follow the selected option; do not add new change ideas when the option forbids them.");
+    if (!wantMeasures) rules.push("MEASURES: follow the selected option; do not add new measures when the option forbids them.");
+    return rules.join("\n");
+  }
+
+  function strengthenQuickPrompt(prompt, options) {
+    // Change only the preference instructions in the original builder.
+    // Preserve its source material, stages, privacy guidance and CSV contract.
+    var oldStart = prompt.indexOf("CONTENT PREFERENCES\n");
+    var oldEnd = oldStart === -1 ? -1 : prompt.indexOf("\nCSV OUTPUT CONTRACT", oldStart);
+    var newPrefs = [
+      "CONTENT PREFERENCES",
+      preferencesLine(options),
+      "Keep the number of diagram items proportionate to the information provided. A polished diagram is not evidence of validity.",
+      "",
+      contentPreferenceRules(options)
+    ].join("\n");
+    if (oldStart !== -1 && oldEnd !== -1) {
+      return prompt.slice(0, oldStart) + newPrefs + prompt.slice(oldEnd);
+    }
+    // Fallback for a working file with a locally customised prompt builder.
+    return prompt + "\n\n" + newPrefs;
   }
 
   function currentDiagramForPrompt() {
@@ -9287,6 +9327,8 @@ initialiseDiagramHistory();
       "",
       "DIAGRAM CONTENT PREFERENCES",
       preferencesLine(options),
+      "",
+      contentPreferenceRules(options),
       "",
       "CSV IMPORT CONTRACT — USE ONLY WHEN I ASK FOR CSV",
       "Return ONLY one fenced ```csv code block and nothing outside it.",
@@ -9680,7 +9722,7 @@ initialiseDiagramHistory();
     createAiDriverDiagramPrompt = function (options) {
       var activeRoute = document.querySelector('input[name="aiUpgradeRoute"]:checked');
       if (activeRoute && activeRoute.value === "coach") return createCoachingPrompt(options);
-      return originalPromptBuilder(options);
+      return strengthenQuickPrompt(originalPromptBuilder(options), options);
     };
 
     tabs.forEach(function (tab, index) {
@@ -9756,5 +9798,5 @@ initialiseDiagramHistory();
     initialiseUpgrade();
   }
 })();
-/* END DRIVER DIAGRAM TOOL AI GUIDANCE THREE-TAB UPGRADE v1.2 */
+/* END DRIVER DIAGRAM TOOL AI GUIDANCE THREE-TAB UPGRADE v1.3 */
 

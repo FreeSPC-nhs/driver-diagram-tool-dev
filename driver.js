@@ -9178,7 +9178,7 @@ initialiseDiagramHistory();
   }
 })();
 
-/* DRIVER DIAGRAM TOOL — AI GUIDANCE THREE-TAB UPGRADE v1.3
+/* DRIVER DIAGRAM TOOL — AI GUIDANCE THREE-TAB UPGRADE v1.4
  * Appendix for the existing driver.js. No AI API, new library or backend.
  * Retains the original prompt builder and CSV importer and their event handlers.
  * Designed to reinitialise correctly in standalone saved HTML copies.
@@ -9186,7 +9186,7 @@ initialiseDiagramHistory();
 (function () {
   "use strict";
 
-  var UPGRADE_VERSION = "1.3";
+  var UPGRADE_VERSION = "1.4";
   var originalPromptBuilder = createAiDriverDiagramPrompt;
 
   function el(tag, className, textValue) {
@@ -9205,12 +9205,12 @@ initialiseDiagramHistory();
     var measures = {
       none: "Do not invent or add measures to CSV.",
       existing: "Include only measures supplied by the user and confirmed for inclusion.",
-      few: "Propose a small number of relevant outcome, process and, where appropriate, balancing measures. Include them in the provisional draft and in CSV if I request it, unless I exclude them. Label them as AI suggestions during review; do not imply they are agreed or already collected."
+      few: "Propose a small number of relevant outcome, process and, where appropriate, balancing measures. Include them in the provisional draft and whenever CSV is generated, unless I exclude them. Label them as AI suggestions during review; do not imply they are agreed or already collected."
     };
     var changes = {
       existing: "Use only change ideas already offered by the user.",
       none: "Do not add change ideas at this stage.",
-      suggest: "My selection of this setting IS a request to propose additional change ideas. Include a small number of relevant new change ideas in the provisional draft and CSV if I request it, unless I exclude them. Distinguish AI suggestions from source ideas during review; do not imply they are agreed or proven."
+      suggest: "My selection of this setting IS a request to propose additional change ideas. Include a small number of relevant new change ideas in the provisional draft and CSV whenever it is generated, unless I exclude them. Distinguish AI suggestions from source ideas during review; do not imply they are agreed or proven."
     };
     var colours = {
       app: "Leave colours blank so the diagram tool handles them.",
@@ -9236,7 +9236,7 @@ initialiseDiagramHistory();
       "2. Preserve the original wording/meaning of source-derived items, but write NEW suggestions in suitable, clear language. Do not silently rewrite existing items merely to make room for new suggestions.",
       "3. Clearly distinguish source-derived items from your own proposed additions in the readable draft and review discussion (for example, a short 'New AI suggestions' subsection). Do not misrepresent suggestions as team-agreed decisions or established evidence.",
       "4. Generate a useful provisional draft with the selected additions rather than making the user separately approve each one before it can appear. Invite me to accept, remove or amend them during review.",
-      "5. When I request CSV, export the CURRENT provisional draft, INCLUDING the selected suggestions unless I have rejected them. My CSV request does not mean the team has formally approved them; the imported diagram remains provisional.",
+      "5. When CSV output is due (automatically for quick diagrams or when requested during coaching), export the CURRENT provisional draft, INCLUDING selected suggestions unless rejected. Export does not mean the team formally approved the suggestions; the diagram remains provisional.",
       "6. Do not invent local observations, baselines, targets or clinical effectiveness. If essential context is absent, offer a generic but clearly provisional candidate and identify its uncertainty, or explain briefly why no responsible suggestion is possible.",
       "7. Before sending CSV, check the chosen options against the output: requested change ideas must be present as change-level rows; requested measures must be present in measures_json on the appropriate aim/driver rows; include the required seven-column CSV when measures are present. Never substitute prose suggestions for the requested CSV content."
     ];
@@ -9264,6 +9264,57 @@ initialiseDiagramHistory();
     }
     // Fallback for a working file with a locally customised prompt builder.
     return prompt + "\n\n" + newPrefs;
+  }
+
+  // The quick route produces importable CSV without an unnecessary extra approval turn.
+  // The conversational coaching route is deliberately separate.
+  function createQuickDiagramPrompt(options) {
+    var choice = document.getElementById("aiQuickStartingPoint");
+    var goalBox = document.getElementById("aiQuickGoal");
+    var fromSources = choice && choice.value === "sources";
+    var goal = goalBox ? goalBox.value.trim() : "";
+    var lines = [
+      "QUICK DRIVER DIAGRAM — generate a provisional importable CSV",
+      "",
+      "YOUR ROLE",
+      "You are supporting healthcare quality improvement. Build a concise, plausible and clearly PROVISIONAL driver diagram. The user may be short of time. Do not require a lengthy coaching conversation or invent local facts, team agreement or clinical effectiveness.",
+      "",
+      "MY STARTING POINT"
+    ];
+    if (fromSources) {
+      lines.push(
+        "I have some context, source materials or existing team thinking that I want reflected in the diagram.",
+        "FIRST REPLY: Ask me to paste the source information, or upload it if this chatbot supports uploads and my organisation has authorised this AI service for the information and task. Do not ask for identifiable, confidential or sensitive information without explicit authorisation. Ask for the improvement goal only if it is not clear from the source.",
+        "After I supply the material, use its terminology and distinctions. Distinguish stated evidence and staff views from AI inference. Do not request further confirmation unless a critical ambiguity prevents a usable diagram.",
+        "Once the material has been received, produce the PROVISIONAL DRIVER DIAGRAM AS CSV in the same reply, with no additional request from me needed. Give one brief sentence about important gaps or assumptions, separate from the CSV."
+      );
+    } else {
+      lines.push("I want to explore a possible way to achieve an improvement goal. I do not have source material to supply.");
+      if (goal) {
+        lines.push("MY IMPROVEMENT GOAL (entered by me in the Driver Diagram Tool):", goal,
+          "Use the goal immediately. Do not ask me to restate it or upload source material. Produce an initial provisional driver diagram and importable CSV in your FIRST reply.");
+      } else {
+        lines.push("FIRST REPLY: Ask me for my improvement goal in one concise question. Once I give it, produce a provisional driver diagram and importable CSV in your NEXT reply without asking me to repeat or approve the goal.");
+      }
+      lines.push(
+        "If you have web research tools, use relevant reliable sources to inform candidate drivers where useful, and briefly cite the sources you actually consulted outside the CSV block. If you do NOT have research tools, do not claim to have researched the topic: use general knowledge, explicitly label assumptions and uncertainty, and do not fabricate references.",
+        "Treat the result as a set of hypotheses to discuss and test, not an evidence-validated or team-agreed theory. Do not prescribe clinical practice or imply a change is safe without local assessment."
+      );
+    }
+    lines.push("", "INDEPENDENT DIAGRAM PREFERENCES", preferencesLine(options), "", contentPreferenceRules(options));
+    lines.push(
+      "", "OUTPUT TIMING AND FORMAT",
+      "Do not stop at a narrative hierarchy or merely tell me to ask for CSV. For this QUICK route, produce valid CSV automatically at the point specified above. I should not need to send a separate 'generate CSV' message.",
+      "Give at most a short contextual note outside the CSV, and put the entire diagram in ONE fenced ```csv block that can be copied into the Driver Diagram Tool. Do not include a markdown table, fake CSV attachment or other code blocks.",
+      "Use exactly the basic CSV columns id,level,parent_id,text unless colour, extra connection or measure fields are needed. If any are needed, use exactly id,level,parent_id,text,color,extra_parents,measures_json. No additional columns.",
+      "Levels are aim, primary, secondary, change. Exactly one aim has no parent. Every primary links to aim, secondary to primary and change to secondary. Unique numeric IDs beginning at 1; no dangling parents or cycles.",
+      "Quote every text field; escape embedded quotes. For extended rows, provide exactly seven columns; use blank colour or extra_parents cells when unneeded. If measures requested, insert valid JSON arrays of {type,text} objects in measures_json on the appropriate rows, correctly CSV-escaped; valid types are outcome, process, balancing or none.",
+      "If suggestions were selected, INCLUDE provisional change rows and/or measures in the CSV (unless no responsible suggestion is possible). Preserve any user-provided language but do not treat that as a ban on adding suggestions.",
+      "Check the CSV syntax and selected preferences before sending. Never fabricate local baseline figures, data or consensus.",
+      "", "INFORMATION GOVERNANCE",
+      "Do not ask me to paste personal, patient-identifiable, staff-identifiable or confidential information unless the specific AI service and use are authorised by my organisation. Removing names may not make data anonymous."
+    );
+    return lines.join("\n");
   }
 
   function currentDiagramForPrompt() {
@@ -9352,10 +9403,10 @@ initialiseDiagramHistory();
     s.textContent = [
       "#aiAssistancePanel.ai-upgraded > summary{display:none!important}",
       "#aiAssistancePanel.ai-upgraded{border:0!important;margin:0!important;padding:0!important}",
-      "#aiAssistancePanel.ai-upgraded > .ai-assistance-content{padding:0!important}",
+      "#aiAssistancePanel.ai-upgraded > .ai-assistance-content{padding:18px 22px 20px!important;box-sizing:border-box}",
       "#aiGuidanceDialog:has(.ai-upgrade-nav){width:min(900px,96vw);max-height:92dvh;}",
       ".ai-upgrade-nav[hidden],.ai-upgrade-welcome[hidden]{display:none!important}",
-      ".ai-upgrade-welcome{padding:0 3px 12px;line-height:1.5}",
+      ".ai-upgrade-welcome{padding:0 0 8px;line-height:1.5}",
       ".ai-upgrade-welcome h3{font-size:1.2rem;margin:2px 0 7px}",
       ".ai-upgrade-welcome h4{font-size:1rem;margin:12px 0 5px}",
       ".ai-upgrade-welcome p{margin:4px 0 10px}",
@@ -9378,7 +9429,7 @@ initialiseDiagramHistory();
       ".ai-upgrade-tab[aria-selected='true']{background:#173f64;border-color:#173f64;color:#fff}",
       ".ai-upgrade-tab:focus-visible,.ai-upgrade-path-choice:focus-within{outline:3px solid #1d83bc;outline-offset:2px}",
       ".ai-upgrade-panel[hidden],.ai-upgrade-empty[hidden],.ai-upgrade-chooser[hidden]{display:none!important}",
-      ".ai-upgrade-panel{min-height:200px;padding:0 2px 8px}",
+      ".ai-upgrade-panel{min-height:200px;padding:0 0 8px}",
       ".ai-upgrade-panel h3{margin:4px 0 7px;font-size:1.12rem}",
       ".ai-upgrade-muted{color:#526373;font-size:.92rem;line-height:1.48;margin:4px 0 14px}",
       ".ai-upgrade-choice-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}",
@@ -9403,12 +9454,17 @@ initialiseDiagramHistory();
       ".ai-upgrade-prompt-holder label{display:block;font-weight:600;margin:8px 0}",
       ".ai-upgrade-prompt-holder textarea{width:100%;min-height:280px}",
       ".ai-upgrade-footer{border-top:1px solid #dfe5ea;margin-top:16px;padding-top:10px;font-size:.9rem}",
+      ".ai-upgrade-resources{margin:12px 0 0;padding:9px 12px;border:1px solid #dce4eb;border-radius:8px;font-size:.9rem}",
+      ".ai-upgrade-resources>summary{cursor:pointer;font-weight:600}",
+      ".ai-upgrade-goal{width:100%;min-height:70px;box-sizing:border-box;resize:vertical;margin:8px 0 3px;padding:10px;font:inherit}",
+      ".ai-upgrade-nextstep{padding:12px 14px;background:#eaf3fc;border-left:4px solid #005eb8;border-radius:5px;margin:12px 0;font-size:.92rem;line-height:1.5}",
+      ".ai-upgrade-nextstep strong{display:block;margin-bottom:3px}",
       ".ai-upgrade-footer .ai-privacy-note{margin-top:10px}",
       ".ai-upgrade-help-link{border:0;background:transparent;text-decoration:underline;color:#175781;padding:4px 0;font:inherit;cursor:pointer}",
       ".ai-upgrade-help-box{background:#f6f8fa;border:1px solid #dce4eb;border-radius:9px;padding:12px 15px;margin:10px 0}",
       ".ai-upgrade-help-box summary{cursor:pointer;font-weight:650}",
       "#aiGuidanceDialog .ai-upgrade-panel .ai-csv-paste{margin:0;}",
-      "@media(max-width:600px){.ai-upgrade-steps{grid-template-columns:1fr}.ai-upgrade-choice-row{grid-template-columns:1fr}.ai-upgrade-nav{gap:3px}.ai-upgrade-tab{padding:10px 3px;font-size:.86rem}.ai-upgrade-panel{padding:0}.ai-upgrade-prompt-holder textarea{min-height:220px}}"
+      "@media(max-width:600px){#aiAssistancePanel.ai-upgraded > .ai-assistance-content{padding:13px 14px 15px!important}.ai-upgrade-steps{grid-template-columns:1fr}.ai-upgrade-choice-row{grid-template-columns:1fr}.ai-upgrade-nav{gap:3px}.ai-upgrade-tab{padding:10px 3px;font-size:.86rem}.ai-upgrade-panel{padding:0}.ai-upgrade-prompt-holder textarea{min-height:220px}}"
     ].join("\n");
     document.head.appendChild(s);
   }
@@ -9477,12 +9533,12 @@ initialiseDiagramHistory();
     var welcome = el("section", "ai-upgrade-welcome");
     welcome.id = "aiUpgradeWelcome";
     welcome.appendChild(el("h3", null, "How AI assistance works"));
-    welcome.appendChild(el("p", null, "The Driver Diagram Tool does not contain AI. It helps you create a tailored prompt to use with an AI chatbot chosen and authorised by your organisation."));
+    welcome.appendChild(el("p", null, "This tool creates a prompt for your chosen, organisation-authorised AI chatbot. It does not contain AI or send anything automatically."));
     var steps = el("div", "ai-upgrade-steps");
     [
-      ["1. Choose the support", "Create a quick draft or get targeted coaching to improve an existing diagram."],
-      ["2. Copy your prompt", "Paste it into an appropriately authorised chatbot such as ChatGPT or Copilot."],
-      ["3. Bring back the CSV", "Review the chatbot's suggestions, request importable CSV, then paste it here."]
+      ["1. Choose", "Start from a goal, use existing information, or get coaching."],
+      ["2. Copy", "Paste the personalised prompt into your AI chatbot."],
+      ["3. Import", "Copy the chatbot's CSV into the Import CSV tab."]
     ].forEach(function (item) {
       var step = el("div", "ai-upgrade-step");
       step.appendChild(el("strong", null, item[0]));
@@ -9490,22 +9546,11 @@ initialiseDiagramHistory();
       steps.appendChild(step);
     });
     welcome.appendChild(steps);
-    welcome.appendChild(el("p", null, "Nothing is sent to an AI service automatically. The tool only generates text for you to review, copy and share yourself."));
     var safety = el("div", "ai-upgrade-safety");
-    safety.appendChild(el("strong", null, "Before sharing information with AI"));
-    safety.appendChild(el("p", null, "Only use an AI service authorised by your organisation for this particular information and purpose. Do not share patient-identifiable, staff-identifiable, confidential or otherwise sensitive information without appropriate authorisation; removing names alone may not prevent identification."));
-    safety.appendChild(el("p", null, "AI can make mistakes and produce plausible but unsupported diagrams. Your team must critically review any proposed drivers, relationships and measures before using them."));
+    safety.appendChild(el("strong", null, "Important: safe and critical use of AI"));
+    safety.appendChild(el("p", null, "Only use an AI service authorised for your task and information. Do not share identifiable, confidential or sensitive information without specific organisational authorisation; removing names may not be enough."));
+    safety.appendChild(el("p", null, "AI can produce convincing but unsupported diagrams. Review all suggestions, relationships and measures with the improvement team."));
     welcome.appendChild(safety);
-    var ig = legacy.querySelector(".ai-ig-warning");
-    if (ig) { ig.open = false; welcome.appendChild(ig); }
-    var privacy = legacy.querySelector(".ai-privacy-note");
-    if (privacy) welcome.appendChild(privacy);
-    var links = legacy.querySelector(".ai-guidance-links");
-    if (links) welcome.appendChild(links);
-    var guide = el("button", "ai-upgrade-help-link", "What makes a useful driver diagram?");
-    guide.type = "button";
-    guide.id = "aiUpgradeHelpLink";
-    welcome.appendChild(guide);
     var introActions = el("div", "ai-upgrade-intro-actions");
     var introContinue = el("button", null, "Continue to AI guidance");
     introContinue.type = "button";
@@ -9516,6 +9561,17 @@ initialiseDiagramHistory();
     introImport.id = "aiUpgradeIntroImport";
     introActions.appendChild(introImport);
     welcome.appendChild(introActions);
+    var resources = el("details", "ai-upgrade-resources");
+    resources.appendChild(el("summary", null, "More about confidentiality and AI guidance"));
+    var ig = legacy.querySelector(".ai-ig-warning");
+    if (ig) { ig.open = false; resources.appendChild(ig); }
+    var links = legacy.querySelector(".ai-guidance-links");
+    if (links) resources.appendChild(links);
+    welcome.appendChild(resources);
+    var guide = el("button", "ai-upgrade-help-link", "What makes a useful driver diagram?");
+    guide.type = "button";
+    guide.id = "aiUpgradeHelpLink";
+    welcome.appendChild(guide);
     content.insertBefore(welcome, nav);
 
     var backIntro = el("div", "ai-upgrade-backintro");
@@ -9553,14 +9609,49 @@ initialiseDiagramHistory();
       label.appendChild(words);
       routes.appendChild(label);
     }
-    route("quick", "Create a driver diagram", "Use one of the three original prompts for a quick, provisional diagram.", true);
+    route("quick", "Create a driver diagram", "Start with a goal or existing information, and get importable CSV quickly.", true);
     route("coach", "Get AI coaching", "Develop or strengthen your thinking, starting wherever you are.", false);
     panes.choose.appendChild(routes);
 
     var quick = el("div", "ai-upgrade-route-detail ai-upgrade-chooser");
     quick.id = "aiUpgradeQuick";
     var scenarioRow = scenario.parentElement;
+    // Keep the original control available to original event handlers, but do
+    // not show a confusing second list of three older approaches.
+    scenarioRow.hidden = true;
     quick.appendChild(scenarioRow);
+    var startLabel = el("label", null, "What are you starting with?");
+    startLabel.htmlFor = "aiQuickStartingPoint";
+    var starting = el("select");
+    starting.id = "aiQuickStartingPoint";
+    [
+      ["goal", "I have an improvement goal, but no source material"],
+      ["sources", "I have existing information or source materials"]
+    ].forEach(function (entry) {
+      var option = el("option", null, entry[1]);
+      option.value = entry[0];
+      starting.appendChild(option);
+    });
+    quick.appendChild(startLabel);
+    quick.appendChild(starting);
+    var goalDetails = el("div");
+    goalDetails.id = "aiQuickGoalDetails";
+    var goalLabel = el("label", null, "Improvement goal (optional — saves a step)");
+    goalLabel.htmlFor = "aiQuickGoal";
+    var goalInput = el("textarea", "ai-upgrade-goal");
+    goalInput.id = "aiQuickGoal";
+    goalInput.rows = 2;
+    goalInput.maxLength = 750;
+    goalInput.autocomplete = "off";
+    goalInput.placeholder = "e.g. Reduce delays in community referrals";
+    goalDetails.appendChild(goalLabel);
+    goalDetails.appendChild(goalInput);
+    goalDetails.appendChild(el("p", "ai-upgrade-muted", "If you enter a goal, the AI prompt will ask for a provisional diagram and CSV immediately. If you leave it blank, the chatbot will ask for your goal first."));
+    quick.appendChild(goalDetails);
+    var sourceDetails = el("p", "ai-upgrade-muted", "The chatbot will ask you to provide authorised source information, then prepare a provisional diagram and CSV. You do not need to copy source material into this tool.");
+    sourceDetails.id = "aiQuickSourceDetails";
+    sourceDetails.hidden = true;
+    quick.appendChild(sourceDetails);
     panes.choose.appendChild(quick);
 
     var coach = el("div", "ai-upgrade-route-detail ai-upgrade-chooser");
@@ -9604,7 +9695,10 @@ initialiseDiagramHistory();
     panes.choose.appendChild(action);
 
     panes.prompt.appendChild(el("h3", null, "Your personalised prompt"));
-    panes.prompt.appendChild(el("p", "ai-upgrade-muted", "Review, edit and copy the text into an AI chatbot authorised for this task and information. Your edits are not changed when you switch tabs."));
+    panes.prompt.appendChild(el("p", "ai-upgrade-muted", "Review or edit the text, then copy it into your authorised AI chatbot. Your edits stay here when switching tabs."));
+    var nextStep = el("div", "ai-upgrade-nextstep");
+    nextStep.id = "aiUpgradeNextStep";
+    panes.prompt.appendChild(nextStep);
     var empty = el("div", "ai-upgrade-empty");
     empty.id = "aiUpgradePromptEmpty";
     empty.appendChild(el("h3", null, "No prompt generated yet"));
@@ -9628,6 +9722,10 @@ initialiseDiagramHistory();
     promptHolder.appendChild(status);
     panes.prompt.appendChild(promptHolder);
 
+    var importHint = el("div", "ai-upgrade-nextstep");
+    importHint.appendChild(el("strong", null, "Need CSV from the chatbot?"));
+    importHint.appendChild(el("span", null, "For quick diagram prompts, the AI should provide CSV automatically. For a coaching conversation, ask: “Generate the CSV now for the Driver Diagram Tool.” Then copy the CSV code into the box below."));
+    panes.import.appendChild(importHint);
     panes.import.appendChild(csv);
 
     return true;
@@ -9652,6 +9750,11 @@ initialiseDiagramHistory();
     var routes = Array.from(content.querySelectorAll('input[name="aiUpgradeRoute"]'));
     var quick = document.getElementById("aiUpgradeQuick");
     var coach = document.getElementById("aiUpgradeCoach");
+    var startChoice = document.getElementById("aiQuickStartingPoint");
+    var goalDetails = document.getElementById("aiQuickGoalDetails");
+    var sourceDetails = document.getElementById("aiQuickSourceDetails");
+    var goalInput = document.getElementById("aiQuickGoal");
+    var nextStep = document.getElementById("aiUpgradeNextStep");
     var empty = document.getElementById("aiUpgradePromptEmpty");
     var promptHolder = document.getElementById("aiUpgradePromptHolder");
     var helpLink = document.getElementById("aiUpgradeHelpLink");
@@ -9711,6 +9814,29 @@ initialiseDiagramHistory();
       });
     }
 
+    function syncStartingPoint() {
+      if (!startChoice) return;
+      var fromSources = startChoice.value === "sources";
+      if (goalDetails) goalDetails.hidden = fromSources;
+      if (sourceDetails) sourceDetails.hidden = !fromSources;
+      // Preserve the old scenario control only for compatibility with
+      // the host application's option collection and reset logic.
+      scenario.value = fromSources ? "synthesis" : "explore";
+    }
+
+    function updateNextStep() {
+      if (!nextStep) return;
+      nextStep.replaceChildren();
+      var route = document.querySelector('input[name="aiUpgradeRoute"]:checked');
+      if (route && route.value === "coach") {
+        nextStep.appendChild(el("strong", null, "When you are ready, ask your AI chatbot for CSV"));
+        nextStep.appendChild(el("span", null, "Copy this prompt into the chatbot. When the diagram is ready, send: “Generate the CSV now for the Driver Diagram Tool.” Then use the Import CSV tab."));
+      } else {
+        nextStep.appendChild(el("strong", null, "The quick prompt requests CSV for you"));
+        nextStep.appendChild(el("span", null, "Copy this prompt to your chatbot. It should provide a CSV code block after your goal or source information is available. Copy that code into Import CSV."));
+      }
+    }
+
     function promptVisibility() {
       var hasPrompt = !!editor.value.trim();
       empty.hidden = hasPrompt;
@@ -9722,7 +9848,7 @@ initialiseDiagramHistory();
     createAiDriverDiagramPrompt = function (options) {
       var activeRoute = document.querySelector('input[name="aiUpgradeRoute"]:checked');
       if (activeRoute && activeRoute.value === "coach") return createCoachingPrompt(options);
-      return strengthenQuickPrompt(originalPromptBuilder(options), options);
+      return createQuickDiagramPrompt(options);
     };
 
     tabs.forEach(function (tab, index) {
@@ -9738,9 +9864,11 @@ initialiseDiagramHistory();
         showWorkspace(tabs[indexToFocus].dataset.aiTab, true);
       });
     });
-    routes.forEach(function (r) { r.addEventListener("change", syncRoute); });
+    routes.forEach(function (r) { r.addEventListener("change", function(){syncRoute();updateNextStep();}); });
+    if (startChoice) startChoice.addEventListener("change", syncStartingPoint);
     build.addEventListener("click", function () {
       promptVisibility();
+      updateNextStep();
       if (editor.value.trim()) showWorkspace("prompt", true);
     });
     var reset = document.getElementById("aiResetPrompt");
@@ -9779,6 +9907,9 @@ initialiseDiagramHistory();
       syncRoute();
       var include = document.getElementById("aiCoachIncludeCurrent");
       if (include) include.checked = false;
+      if (goalInput) goalInput.value = "";
+      if (startChoice) startChoice.value = "goal";
+      syncStartingPoint();
       var ig = document.querySelector("#aiUpgradeWelcome .ai-ig-warning");
       if (ig) ig.open = false;
       promptVisibility();
@@ -9788,6 +9919,8 @@ initialiseDiagramHistory();
     routes[0].checked = true;
     routes[1].checked = false;
     syncRoute();
+    syncStartingPoint();
+    updateNextStep();
     promptVisibility();
     showWelcome(false);
   }
@@ -9798,5 +9931,5 @@ initialiseDiagramHistory();
     initialiseUpgrade();
   }
 })();
-/* END DRIVER DIAGRAM TOOL AI GUIDANCE THREE-TAB UPGRADE v1.3 */
+/* END DRIVER DIAGRAM TOOL AI GUIDANCE THREE-TAB UPGRADE v1.4 */
 

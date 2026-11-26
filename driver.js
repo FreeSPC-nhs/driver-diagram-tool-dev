@@ -9178,7 +9178,7 @@ initialiseDiagramHistory();
   }
 })();
 
-/* DRIVER DIAGRAM TOOL — AI GUIDANCE THREE-TAB UPGRADE v1.1
+/* DRIVER DIAGRAM TOOL — AI GUIDANCE THREE-TAB UPGRADE v1.2
  * Appendix for the existing driver.js. No AI API, new library or backend.
  * Retains the original prompt builder and CSV importer and their event handlers.
  * Designed to reinitialise correctly in standalone saved HTML copies.
@@ -9186,7 +9186,7 @@ initialiseDiagramHistory();
 (function () {
   "use strict";
 
-  var UPGRADE_VERSION = "1.1";
+  var UPGRADE_VERSION = "1.2";
   var originalPromptBuilder = createAiDriverDiagramPrompt;
 
   function el(tag, className, textValue) {
@@ -9312,6 +9312,24 @@ initialiseDiagramHistory();
       "#aiAssistancePanel.ai-upgraded{border:0!important;margin:0!important;padding:0!important}",
       "#aiAssistancePanel.ai-upgraded > .ai-assistance-content{padding:0!important}",
       "#aiGuidanceDialog:has(.ai-upgrade-nav){width:min(900px,96vw);max-height:92dvh;}",
+      ".ai-upgrade-nav[hidden],.ai-upgrade-welcome[hidden]{display:none!important}",
+      ".ai-upgrade-welcome{padding:0 3px 12px;line-height:1.5}",
+      ".ai-upgrade-welcome h3{font-size:1.2rem;margin:2px 0 7px}",
+      ".ai-upgrade-welcome h4{font-size:1rem;margin:12px 0 5px}",
+      ".ai-upgrade-welcome p{margin:4px 0 10px}",
+      ".ai-upgrade-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}",
+      ".ai-upgrade-step{border:1px solid #d7e2eb;border-radius:9px;padding:12px;background:#f7f9fc;font-size:.9rem}",
+      ".ai-upgrade-step strong{display:block;margin-bottom:4px}",
+      ".ai-upgrade-safety{background:#fff9f4;border-left:3px solid #a23a23;padding:10px 14px;margin:14px 0;border-radius:5px}",
+      ".ai-upgrade-safety p{margin:5px 0}",
+      ".ai-upgrade-welcome details.ai-ig-warning{margin:12px 0}",
+      ".ai-upgrade-welcome .ai-privacy-note{margin:10px 0}",
+      ".ai-upgrade-welcome .ai-guidance-links{margin:10px 0;font-size:.85rem}",
+      ".ai-upgrade-intro-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:16px 0 4px}",
+      ".ai-upgrade-intro-actions button{min-height:42px}",
+      ".ai-upgrade-backintro{font-size:.82rem;text-align:right;margin:-8px 0 8px}",
+      ".ai-upgrade-backintro[hidden]{display:none!important}",
+      ".ai-upgrade-backintro button{color:#175781;background:transparent;border:0;text-decoration:underline;font:inherit;cursor:pointer;padding:3px}",
       ".ai-upgrade-legacy{display:none!important}",
       ".ai-upgrade-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0 0 16px;padding:4px 0 10px;border-bottom:1px solid #d5dce4;position:sticky;top:0;background:#fff;z-index:2}",
       ".ai-upgrade-tab{appearance:none;border:1px solid #cbd5df;border-radius:9px;background:#f5f7fa;color:#243347;padding:11px 7px;font:inherit;font-weight:600;cursor:pointer;text-align:center;white-space:normal;min-height:42px}",
@@ -9348,7 +9366,7 @@ initialiseDiagramHistory();
       ".ai-upgrade-help-box{background:#f6f8fa;border:1px solid #dce4eb;border-radius:9px;padding:12px 15px;margin:10px 0}",
       ".ai-upgrade-help-box summary{cursor:pointer;font-weight:650}",
       "#aiGuidanceDialog .ai-upgrade-panel .ai-csv-paste{margin:0;}",
-      "@media(max-width:600px){.ai-upgrade-choice-row{grid-template-columns:1fr}.ai-upgrade-nav{gap:3px}.ai-upgrade-tab{padding:10px 3px;font-size:.86rem}.ai-upgrade-panel{padding:0}.ai-upgrade-prompt-holder textarea{min-height:220px}}"
+      "@media(max-width:600px){.ai-upgrade-steps{grid-template-columns:1fr}.ai-upgrade-choice-row{grid-template-columns:1fr}.ai-upgrade-nav{gap:3px}.ai-upgrade-tab{padding:10px 3px;font-size:.86rem}.ai-upgrade-panel{padding:0}.ai-upgrade-prompt-holder textarea{min-height:220px}}"
     ].join("\n");
     document.head.appendChild(s);
   }
@@ -9413,6 +9431,58 @@ initialiseDiagramHistory();
     });
     content.insertBefore(nav, legacy);
 
+    // Introduction and information governance appear together, outside the work tabs.
+    var welcome = el("section", "ai-upgrade-welcome");
+    welcome.id = "aiUpgradeWelcome";
+    welcome.appendChild(el("h3", null, "How AI assistance works"));
+    welcome.appendChild(el("p", null, "The Driver Diagram Tool does not contain AI. It helps you create a tailored prompt to use with an AI chatbot chosen and authorised by your organisation."));
+    var steps = el("div", "ai-upgrade-steps");
+    [
+      ["1. Choose the support", "Create a quick draft or get targeted coaching to improve an existing diagram."],
+      ["2. Copy your prompt", "Paste it into an appropriately authorised chatbot such as ChatGPT or Copilot."],
+      ["3. Bring back the CSV", "Review the chatbot's suggestions, request importable CSV, then paste it here."]
+    ].forEach(function (item) {
+      var step = el("div", "ai-upgrade-step");
+      step.appendChild(el("strong", null, item[0]));
+      step.appendChild(el("span", null, item[1]));
+      steps.appendChild(step);
+    });
+    welcome.appendChild(steps);
+    welcome.appendChild(el("p", null, "Nothing is sent to an AI service automatically. The tool only generates text for you to review, copy and share yourself."));
+    var safety = el("div", "ai-upgrade-safety");
+    safety.appendChild(el("strong", null, "Before sharing information with AI"));
+    safety.appendChild(el("p", null, "Only use an AI service authorised by your organisation for this particular information and purpose. Do not share patient-identifiable, staff-identifiable, confidential or otherwise sensitive information without appropriate authorisation; removing names alone may not prevent identification."));
+    safety.appendChild(el("p", null, "AI can make mistakes and produce plausible but unsupported diagrams. Your team must critically review any proposed drivers, relationships and measures before using them."));
+    welcome.appendChild(safety);
+    var ig = legacy.querySelector(".ai-ig-warning");
+    if (ig) { ig.open = false; welcome.appendChild(ig); }
+    var privacy = legacy.querySelector(".ai-privacy-note");
+    if (privacy) welcome.appendChild(privacy);
+    var links = legacy.querySelector(".ai-guidance-links");
+    if (links) welcome.appendChild(links);
+    var guide = el("button", "ai-upgrade-help-link", "What makes a useful driver diagram?");
+    guide.type = "button";
+    guide.id = "aiUpgradeHelpLink";
+    welcome.appendChild(guide);
+    var introActions = el("div", "ai-upgrade-intro-actions");
+    var introContinue = el("button", null, "Continue to AI guidance");
+    introContinue.type = "button";
+    introContinue.id = "aiUpgradeContinue";
+    introActions.appendChild(introContinue);
+    var introImport = el("button", null, "Go straight to Import CSV");
+    introImport.type = "button";
+    introImport.id = "aiUpgradeIntroImport";
+    introActions.appendChild(introImport);
+    welcome.appendChild(introActions);
+    content.insertBefore(welcome, nav);
+
+    var backIntro = el("div", "ai-upgrade-backintro");
+    var backButton = el("button", null, "How AI works & safety");
+    backButton.type = "button";
+    backButton.id = "aiUpgradeBackIntro";
+    backIntro.appendChild(backButton);
+    content.insertBefore(backIntro, legacy);
+
     var panes = {};
     ["choose", "prompt", "import"].forEach(function (name) {
       var pane = el("section", "ai-upgrade-panel");
@@ -9425,7 +9495,6 @@ initialiseDiagramHistory();
     });
 
     panes.choose.appendChild(el("h3", null, "What would you like help with?"));
-    panes.choose.appendChild(el("p", "ai-upgrade-muted", "Choose a quick diagram prompt or personalised coaching. You can go straight to Import CSV at any time."));
 
     var routes = el("div", "ai-upgrade-choice-row");
     function route(value, title, description, checked) {
@@ -9491,8 +9560,6 @@ initialiseDiagramHistory();
     makeButton.textContent = "Generate prompt";
     action.appendChild(makeButton);
     panes.choose.appendChild(action);
-    var remember = el("p", "ai-upgrade-muted", "Important: Do not share patient-identifiable, staff-identifiable or confidential material with an AI chatbot unless your organisation specifically authorises that service and use. This tool does not contact an AI service.");
-    panes.choose.appendChild(remember);
 
     panes.prompt.appendChild(el("h3", null, "Your personalised prompt"));
     panes.prompt.appendChild(el("p", "ai-upgrade-muted", "Review, edit and copy the text into an AI chatbot authorised for this task and information. Your edits are not changed when you switch tabs."));
@@ -9521,23 +9588,6 @@ initialiseDiagramHistory();
 
     panes.import.appendChild(csv);
 
-    var footer = el("div", "ai-upgrade-footer");
-    footer.id = "aiUpgradeFooter";
-    var help = el("button", "ai-upgrade-help-link", "What makes a useful driver diagram?");
-    help.id = "aiUpgradeHelpLink";
-    help.type = "button";
-    footer.appendChild(help);
-    var ig = legacy.querySelector(".ai-ig-warning");
-    if (ig) { ig.open = false; footer.appendChild(ig); }
-    var privacy = legacy.querySelector(".ai-privacy-note");
-    if (privacy) footer.appendChild(privacy);
-    var links = legacy.querySelector(".ai-guidance-links");
-    if (links) footer.appendChild(links);
-    content.insertBefore(footer, legacy);
-
-    var coachOption = el("option", null, "Get AI coaching");
-    coachOption.value = "coach";
-    scenario.appendChild(coachOption);
     return true;
   }
 
@@ -9564,7 +9614,18 @@ initialiseDiagramHistory();
     var promptHolder = document.getElementById("aiUpgradePromptHolder");
     var helpLink = document.getElementById("aiUpgradeHelpLink");
     var helpButton = document.getElementById("btnHelp");
-    if (tabs.length !== 3 || routes.length !== 2 || !quick || !coach || !empty || !promptHolder) return;
+    var welcome = document.getElementById("aiUpgradeWelcome");
+    var nav = document.getElementById("aiUpgradeNav");
+    var backIntro = content.querySelector(".ai-upgrade-backintro");
+    var continueButton = document.getElementById("aiUpgradeContinue");
+    var importButton = document.getElementById("aiUpgradeIntroImport");
+    var returnButton = document.getElementById("aiUpgradeBackIntro");
+    if (tabs.length !== 3 || routes.length !== 2 || !quick || !coach || !empty || !promptHolder ||
+        !welcome || !nav || !backIntro || !continueButton || !importButton || !returnButton) return;
+
+    // The upgrade no longer adds 'Get AI coaching' to the quick diagram dropdown.
+    scenario.querySelectorAll('option[value="coach"]').forEach(function (option) { option.remove(); });
+    if (!scenario.value) scenario.value = "draft";
 
     function selectTab(name, focusTab) {
       tabs.forEach(function (tab) {
@@ -9579,6 +9640,25 @@ initialiseDiagramHistory();
       dialog.scrollTop = 0;
     }
 
+    function showWorkspace(tabName, focusTab) {
+      welcome.hidden = true;
+      nav.hidden = false;
+      backIntro.hidden = false;
+      selectTab(tabName || "choose", !!focusTab);
+    }
+
+    function showWelcome(focusButton) {
+      welcome.hidden = false;
+      nav.hidden = true;
+      backIntro.hidden = true;
+      tabs.forEach(function (tab) {
+        var panel = document.getElementById("aiUpgradePanel-" + tab.dataset.aiTab);
+        if (panel) panel.hidden = true;
+      });
+      dialog.scrollTop = 0;
+      if (focusButton) continueButton.focus();
+    }
+
     function syncRoute() {
       var chosen = routes.filter(function (r) { return r.checked; })[0];
       var mode = chosen ? chosen.value : "quick";
@@ -9587,12 +9667,6 @@ initialiseDiagramHistory();
       routes.forEach(function (r) {
         r.closest("label").classList.toggle("is-selected", r.checked);
       });
-      if (mode === "coach") {
-        scenario.value = "coach";
-      } else if (scenario.value === "coach") {
-        scenario.value = "draft";
-      }
-      scenario.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
     function promptVisibility() {
@@ -9604,12 +9678,13 @@ initialiseDiagramHistory();
     // Original builder remains responsible for prompt generation and copy/reset.
     // This function is the only change to which prompt it generates for 'coach'.
     createAiDriverDiagramPrompt = function (options) {
-      if (options && options.scenario === "coach") return createCoachingPrompt(options);
+      var activeRoute = document.querySelector('input[name="aiUpgradeRoute"]:checked');
+      if (activeRoute && activeRoute.value === "coach") return createCoachingPrompt(options);
       return originalPromptBuilder(options);
     };
 
     tabs.forEach(function (tab, index) {
-      tab.addEventListener("click", function () { selectTab(tab.dataset.aiTab); });
+      tab.addEventListener("click", function () { showWorkspace(tab.dataset.aiTab); });
       tab.addEventListener("keydown", function (event) {
         var indexToFocus;
         if (event.key === "ArrowRight") indexToFocus = (index + 1) % tabs.length;
@@ -9618,19 +9693,34 @@ initialiseDiagramHistory();
         else if (event.key === "End") indexToFocus = tabs.length - 1;
         else return;
         event.preventDefault();
-        selectTab(tabs[indexToFocus].dataset.aiTab, true);
+        showWorkspace(tabs[indexToFocus].dataset.aiTab, true);
       });
     });
     routes.forEach(function (r) { r.addEventListener("change", syncRoute); });
     build.addEventListener("click", function () {
       promptVisibility();
-      if (editor.value.trim()) selectTab("prompt", true);
+      if (editor.value.trim()) showWorkspace("prompt", true);
     });
     var reset = document.getElementById("aiResetPrompt");
     if (reset) reset.addEventListener("click", promptVisibility);
     editor.addEventListener("input", promptVisibility);
     var goChoose = document.getElementById("aiUpgradeGoChoose");
-    if (goChoose) goChoose.addEventListener("click", function () { selectTab("choose", true); });
+    if (goChoose) goChoose.addEventListener("click", function () { showWorkspace("choose", true); });
+    continueButton.addEventListener("click", function () { showWorkspace("choose", true); });
+    importButton.addEventListener("click", function () { showWorkspace("import", true); });
+    returnButton.addEventListener("click", function () { showWelcome(true); });
+
+    // The original application closes the dialog on backdrop clicks. Prevent
+    // those accidental closures while retaining the X button and Escape key.
+    dialog.addEventListener("click", function (event) {
+      if (event.target !== dialog) return;
+      var rect = dialog.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right ||
+          event.clientY < rect.top || event.clientY > rect.bottom) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, true);
     if (helpLink && helpButton) helpLink.addEventListener("click", function () {
       dialog.close();
       window.setTimeout(function () {
@@ -9647,23 +9737,17 @@ initialiseDiagramHistory();
       syncRoute();
       var include = document.getElementById("aiCoachIncludeCurrent");
       if (include) include.checked = false;
-      var ig = document.querySelector("#aiUpgradeFooter .ai-ig-warning");
+      var ig = document.querySelector("#aiUpgradeWelcome .ai-ig-warning");
       if (ig) ig.open = false;
       promptVisibility();
-      selectTab("choose");
+      showWelcome(false);
     });
-    // Reloaded standalone HTML files contain the enhanced DOM but no listeners.
-    // Reapply initial state and event handlers rather than inserting duplicates.
-    if (!scenario.querySelector('option[value="coach"]')) {
-      var op = el("option", null, "Get AI coaching");
-      op.value = "coach";
-      scenario.appendChild(op);
-    }
+    // Reloaded standalone HTML retains DOM, but event handlers are reattached.
     routes[0].checked = true;
     routes[1].checked = false;
     syncRoute();
     promptVisibility();
-    selectTab("choose");
+    showWelcome(false);
   }
 
   if (document.readyState === "loading") {
@@ -9672,5 +9756,5 @@ initialiseDiagramHistory();
     initialiseUpgrade();
   }
 })();
-/* END DRIVER DIAGRAM TOOL AI GUIDANCE THREE-TAB UPGRADE v1.1 */
+/* END DRIVER DIAGRAM TOOL AI GUIDANCE THREE-TAB UPGRADE v1.2 */
 

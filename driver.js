@@ -9178,7 +9178,7 @@ initialiseDiagramHistory();
   }
 })();
 
-/* DRIVER DIAGRAM TOOL — AI GUIDANCE THREE-TAB UPGRADE v1.4
+/* DRIVER DIAGRAM TOOL — AI GUIDANCE THREE-TAB UPGRADE v1.5
  * Appendix for the existing driver.js. No AI API, new library or backend.
  * Retains the original prompt builder and CSV importer and their event handlers.
  * Designed to reinitialise correctly in standalone saved HTML copies.
@@ -9186,7 +9186,7 @@ initialiseDiagramHistory();
 (function () {
   "use strict";
 
-  var UPGRADE_VERSION = "1.4";
+  var UPGRADE_VERSION = "1.5";
   var originalPromptBuilder = createAiDriverDiagramPrompt;
 
   function el(tag, className, textValue) {
@@ -9469,6 +9469,44 @@ initialiseDiagramHistory();
     document.head.appendChild(s);
   }
 
+  // Keep the author's contact details in About this tool. Some older copies
+  // lack the attribution; the public index.html already includes it but its
+  // mailto target contains a duplicated "nhs" component.
+  function ensureAboutAttribution() {
+    var overlay = document.getElementById("helpOverlay");
+    var dialog = overlay && overlay.querySelector(".modal-dialog");
+    if (!dialog) return;
+    var email = "j.ramazanoglu@nhs.net";
+    var existingLink = Array.from(dialog.querySelectorAll("a")).find(function (link) {
+      return /j\.ramazanoglu@nhs(?:\.nhs)?\.net/i.test(
+        (link.textContent || "") + " " + (link.getAttribute("href") || "")
+      );
+    });
+    if (existingLink) {
+      existingLink.textContent = email;
+      existingLink.href = "mailto:" + email;
+      return;
+    }
+    var aboutHeading = Array.from(dialog.children).find(function (item) {
+      return item.tagName === "H3" && item.textContent.trim().toLowerCase() === "about this tool";
+    });
+    if (!aboutHeading) return;
+    var current = aboutHeading.nextElementSibling;
+    while (current && current.tagName !== "H3" && !current.classList.contains("faq-question")) {
+      if ((current.textContent || "").includes("Jem Ramazanoglu")) return;
+      current = current.nextElementSibling;
+    }
+    var paragraph = el("p");
+    paragraph.appendChild(document.createTextNode("This tool was created by Jem Ramazanoglu – "));
+    var link = el("a", null, email);
+    link.href = "mailto:" + email;
+    paragraph.appendChild(link);
+    paragraph.appendChild(document.createTextNode(
+      " as a free resource to support improvement efforts in healthcare. Feedback and suggestions are very welcome."
+    ));
+    dialog.insertBefore(paragraph, current || null);
+  }
+
   function installHelp() {
     if (document.getElementById("aiUpgradeHelp")) return;
     var overlay = document.getElementById("helpOverlay");
@@ -9741,6 +9779,7 @@ initialiseDiagramHistory();
     if (!dialog || !details || !content || !scenario || !editor || !build) return;
 
     installStyles();
+    ensureAboutAttribution();
     installHelp();
     if (!document.getElementById("aiUpgradeNav") && !buildTabs(content)) return;
     details.classList.add("ai-upgraded");
@@ -9897,6 +9936,17 @@ initialiseDiagramHistory();
         helpButton.click();
         var guide = document.getElementById("aiUpgradeHelp");
         if (guide) guide.open = true;
+        // The guide is nested inside the About accordion after the existing
+        // Help accordions are initialised. Open the parent as well; otherwise
+        // the guide can be expanded but remain invisible to the user.
+        var about = guide && guide.closest(".help-accordion");
+        if (!about) {
+          about = Array.from(document.querySelectorAll("#helpOverlay .help-accordion")).find(function (item) {
+            var heading = item.querySelector(":scope > summary");
+            return heading && heading.textContent.trim().toLowerCase() === "about this tool";
+          });
+        }
+        if (about) about.open = true;
       }, 0);
     });
     dialog.addEventListener("close", function () {
@@ -9909,7 +9959,20 @@ initialiseDiagramHistory();
       if (include) include.checked = false;
       if (goalInput) goalInput.value = "";
       if (startChoice) startChoice.value = "goal";
+      var focusChoice = document.getElementById("aiCoachFocus");
+      if (focusChoice) focusChoice.value = "review";
+      // The original prompt-builder close handler clears its five selects,
+      // prompt and pasted CSV. Reset the new upgrade-specific controls too.
+      ["aiPromptWording", "aiPromptMeasures", "aiPromptChanges", "aiPromptColours"].forEach(function (id) {
+        var field = document.getElementById(id);
+        if (field) field.selectedIndex = 0;
+      });
+      var options = content.querySelector(".ai-upgrade-options");
+      if (options) options.open = false;
+      var extraInfo = welcome.querySelector(".ai-upgrade-resources");
+      if (extraInfo) extraInfo.open = false;
       syncStartingPoint();
+      updateNextStep();
       var ig = document.querySelector("#aiUpgradeWelcome .ai-ig-warning");
       if (ig) ig.open = false;
       promptVisibility();
@@ -9931,5 +9994,5 @@ initialiseDiagramHistory();
     initialiseUpgrade();
   }
 })();
-/* END DRIVER DIAGRAM TOOL AI GUIDANCE THREE-TAB UPGRADE v1.4 */
+/* END DRIVER DIAGRAM TOOL AI GUIDANCE THREE-TAB UPGRADE v1.5 */
 
